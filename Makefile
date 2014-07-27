@@ -10,8 +10,8 @@ output:
 
 .PHONY: test.blocks
 test.blocks: | output
-	./src/hyperwiki_to_html.py \
-	< test/input/blocks.hyperwiki \
+	./src/hyperpolywiki_to_html.py \
+	< test/input/blocks.hpwiki \
 	> output/blocks.html
 	diff test/expected.output/blocks.html output/blocks.html
 
