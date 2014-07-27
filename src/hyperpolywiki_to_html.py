@@ -106,6 +106,42 @@ class Block(object):
         self.write_close_tag(output_stream)
 
 
+class HorizontalRule(Block):
+    def __init__(self, line, match):
+        Block.__init__(self, line, BLOCK_TYPE_HR, match)
+
+    def close(self, output_stream):
+        output_stream.write('<hr />\n')
+
+
+class UnorderedList(Block):
+    def __init__(self, line, match):
+        Block.__init__(self, line, BLOCK_TYPE_UL, match)
+
+    def write_open_tag(self, output_stream):
+        output_stream.write('<{}>\n'.format(self.tag))
+
+    def write_content(self, output_stream):
+        for match in self.matches:
+            output_stream.write('<li>')
+            output_stream.write(match.group('content'))
+            output_stream.write('</li>\n')
+
+
+class OrderedList(Block):
+    def __init__(self, line, match):
+        Block.__init__(self, line, BLOCK_TYPE_OL, match)
+
+    def write_open_tag(self, output_stream):
+        output_stream.write('<{}>\n'.format(self.tag))
+
+    def write_content(self, output_stream):
+        for match in self.matches:
+            output_stream.write('<li>')
+            output_stream.write(match.group('content'))
+            output_stream.write('</li>\n')
+
+
 class Empty(Block):
     def __init__(self, line, match):
         Block.__init__(self, line, BLOCK_TYPE_EMPTY, match)
@@ -125,8 +161,14 @@ class Paragraph(Block):
 
 
 def block_factory(line, block_type=None, match=None):
-    if block_type == BLOCK_TYPE_EMPTY:
+    if block_type == BLOCK_TYPE_UL:
+        return UnorderedList(line, match)
+    elif block_type == BLOCK_TYPE_OL:
+        return OrderedList(line, match)
+    elif block_type == BLOCK_TYPE_EMPTY:
         return Empty(line, match)
+    elif block_type == BLOCK_TYPE_HR:
+        return HorizontalRule(line, match)
     elif block_type == BLOCK_TYPE_P:
         return Paragraph(line, match)
     else:
