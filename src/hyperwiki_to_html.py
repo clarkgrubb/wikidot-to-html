@@ -16,6 +16,7 @@ BLOCK_TYPE_H4 = 'h4'
 BLOCK_TYPE_H5 = 'h5'
 BLOCK_TYPE_H6 = 'h6'
 BLOCK_TYPE_HR = 'hr'
+BLOCK_TYPE_EMPTY = 'empty'
 
 MULTILINE_BLOCK_TYPES = [BLOCK_TYPE_P,
                          BLOCK_TYPE_UL,
@@ -28,6 +29,7 @@ REGEX_TABLE = re.compile(r'^(?P<indent>\s*)(?P<content>\|\|.*)$')
 REGEX_HN = re.compile(
     r'^(?P<indent>\s*)(?P<plus_signs>\+{1,6})\s+(?P<content>\S.*)$')
 REGEX_HR = re.compile(r'^(?P<indent>\s*)----(?P<content>)$')
+REGEX_EMPTY = re.compile(r'^\s*$')
 REGEX_P = re.compile(r'^(?P<content>.*)$')
 
 
@@ -47,6 +49,9 @@ def analyze_line(line):
     md = REGEX_HR.search(line)
     if md:
         return BLOCK_TYPE_HR, md
+    md = REGEX_EMPTY.search(line)
+    if md:
+        return BLOCK_TYPE_EMPTY, md
     md = REGEX_P.search(line)
     if md:
         return BLOCK_TYPE_P, md
@@ -93,7 +98,7 @@ class Block(object):
             output_stream.write(match.group('content'))
 
     def write_close_tag(self, output_stream):
-        output_stream.write('</{}>'.format(self.tag))
+        output_stream.write('</{}>\n'.format(self.tag))
 
     def close(self, output_stream):
         self.write_open_tag(output_stream)
@@ -101,19 +106,46 @@ class Block(object):
         self.write_close_tag(output_stream)
 
 
+class Empty(Block):
+    def __init__(self, line, match):
+        Block.__init__(self, line, BLOCK_TYPE_EMPTY, match)
+
+    def close(self, output_stream):
+        pass
+
+
+class Paragraph(Block):
+
+    def __init__(self, line, match):
+        Block.__init__(self, line, BLOCK_TYPE_P, match)
+
+    def write_content(self, output_stream):
+        content = [match.group('content') for match in self.matches]
+        output_stream.write('<br />\n'.join(content))
+
+
+def block_factory(line, block_type=None, match=None):
+    if block_type == BLOCK_TYPE_EMPTY:
+        return Empty(line, match)
+    elif block_type == BLOCK_TYPE_P:
+        return Paragraph(line, match)
+    else:
+        return Block(line, block_type, match)
+
+
 def process_lines(input_stream, output_stream):
     current_block = None
     for line in input_stream:
         block_type, match = analyze_line(line)
         if not current_block:
-            current_block = Block(line, block_type, match)
+            current_block = block_factory(line, block_type, match)
         elif (block_type == current_block.block_type and
               current_block.multiline_type):
             current_block.add_line(line, block_type, match)
         else:
             if current_block:
                 current_block.close(output_stream)
-            current_block = Block(line, block_type, match)
+            current_block = block_factory(line, block_type, match)
 
     if current_block:
         current_block.close(output_stream)
