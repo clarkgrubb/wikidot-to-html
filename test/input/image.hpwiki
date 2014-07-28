@@ -1,0 +1,7 @@
+This is an [[image foo.jpg]] embedded image.
+
+[[image foo.jpg]]
+
+This is a linked [[image foo.jpg link="http://foo.com"]] image.
+
+This is a resized [[image foo.jpg width="300px"]] image.

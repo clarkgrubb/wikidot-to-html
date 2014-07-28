@@ -1,0 +1,39 @@
+Here is some text with //italics//.
+
+This is //two lines of
+italics//.
+
+Here is **some bold text**.
+
+Here are //**bold italics**// and more **//bold italics//**.
+
+This is {{fixed-width font}}.
+
+This is --strike thru-- text.
+
+This is __underlined text__.
+
+This is [[span style="font-variant: small-caps"]]SMALL CAPS text[[/span]].
+
+Put a class on [[span class="foo"]]text[[/span]].
+
+Put another class
+[[span class="bar"]]
+on text
+[[/span]].
+
+Can you solve this: {{x,,1,,^^2^^ = 4}}.
+
+How about this: {{x,,2,, = 4^^2^^}}.
+
+The ##red|red text##.
+
+And more ##FF0000|red text##.
+
+[[size larger]]larger text[[/size]]
+
+[[size 80%]]80% of current size[[/size]]
+
+[[size 1em]]100% of current size[[/size]]
+
+What does //**this//** do?

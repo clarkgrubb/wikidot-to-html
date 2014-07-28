@@ -1,0 +1,19 @@
+Not a block quote
+
+> This is a
+> block quote
+
+Outside of the block quote again.
+
+This is code:
+
+[[code]]
+#include <stdio.h>
+
+int
+main(int argc, char** argv) {
+    printf("Hello, World!\n");
+}
+[[/code]]
+
+This is not code.

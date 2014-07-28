@@ -1,0 +1,9 @@
+This is [[$ \int_0^\infty \frac{1}{x^2} dx $]] inline math.
+
+And this:
+
+[[math]]
+\int_0^\infty \frac{1}{x^2} dx
+[[/math]]
+
+is block math.

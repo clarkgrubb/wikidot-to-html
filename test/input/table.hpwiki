@@ -1,0 +1,8 @@
+||||||~ a table||
+||~ foo||~ bar||~ baz||
+||one||two _
+three||four||
+||five||six||seven _
+eight||
+||really long field||really long field||really long field||
+||< left||= center||> right||
