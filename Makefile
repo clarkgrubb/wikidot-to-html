@@ -11,7 +11,7 @@ output:
 .PHONY: test.blocks
 test.blocks: | output
 	@echo TEST: input/blocks.hpwiki
-	./src/hyperpolywiki_to_html.py \
+	./src/wikidot_to_html.py \
 	< test/input/blocks.hpwiki \
 	> output/blocks.html
 	diff test/expected.output/blocks.html output/blocks.html
@@ -19,7 +19,7 @@ test.blocks: | output
 .PHONY: test.blocks
 test.block-quote: | output
 	@echo TEST: input/block-quote.hpwiki
-	./src/hyperpolywiki_to_html.py \
+	./src/wikidot_to_html.py \
 	< test/input/block-quote.hpwiki \
 	> output/block-quote.html
 	diff test/expected.output/block-quote.html output/block-quote.html
@@ -27,7 +27,7 @@ test.block-quote: | output
 .PHONY: test.comment
 test.comment: | output
 	@echo TEST: input/comment.hpwiki
-	./src/hyperpolywiki_to_html.py \
+	./src/wikidot_to_html.py \
 	< test/input/comment.hpwiki \
 	> output/comment.html
 	diff test/expected.output/comment.html output/comment.html
@@ -35,7 +35,7 @@ test.comment: | output
 .PHONY: test.blocks
 test.div: | output
 	@echo TEST: input/div.hpwiki
-	./src/hyperpolywiki_to_html.py \
+	./src/wikidot_to_html.py \
 	< test/input/div.hpwiki \
 	> output/div.html
 	diff test/expected.output/div.html output/div.html
@@ -43,7 +43,7 @@ test.div: | output
 .PHONY: test.font
 test.font: | output
 	@echo TEST: input/font.hpwiki
-	./src/hyperpolywiki_to_html.py \
+	./src/wikidot_to_html.py \
 	< test/input/font.hpwiki \
 	> output/font.html
 	diff test/expected.output/font.html output/font.html
@@ -51,7 +51,7 @@ test.font: | output
 .PHONY: test.headers
 test.headers: | output
 	@echo TEST: input/headers.hpwiki
-	./src/hyperpolywiki_to_html.py \
+	./src/wikidot_to_html.py \
 	< test/input/headers.hpwiki \
 	> output/headers.html
 	diff test/expected.output/headers.html output/headers.html
@@ -59,7 +59,7 @@ test.headers: | output
 .PHONY: test.html-entities
 test.html-entities: | output
 	@echo TEST: input/html-entities.hpwiki
-	./src/hyperpolywiki_to_html.py \
+	./src/wikidot_to_html.py \
 	< test/input/html-entities.hpwiki \
 	> output/html-entities.html
 	diff test/expected.output/html-entities.html output/html-entities.html
@@ -67,7 +67,7 @@ test.html-entities: | output
 .PHONY: test.image
 test.image: | output
 	@echo TEST: input/image.hpwiki
-	./src/hyperpolywiki_to_html.py \
+	./src/wikidot_to_html.py \
 	< test/input/image.hpwiki \
 	> output/image.html
 	diff test/expected.output/image.html output/image.html
@@ -75,7 +75,7 @@ test.image: | output
 .PHONY: test.links
 test.links: | output
 	@echo TEST: input/links.hpwiki
-	./src/hyperpolywiki_to_html.py \
+	./src/wikidot_to_html.py \
 	< test/input/links.hpwiki \
 	> output/links.html
 	diff test/expected.output/links.html output/links.html
@@ -83,7 +83,7 @@ test.links: | output
 .PHONY: test.lists
 test.lists: | output
 	@echo TEST: input/lists.hpwiki
-	./src/hyperpolywiki_to_html.py \
+	./src/wikidot_to_html.py \
 	< test/input/lists.hpwiki \
 	> output/lists.html
 	diff test/expected.output/lists.html output/lists.html
@@ -91,7 +91,7 @@ test.lists: | output
 .PHONY: test.literal
 test.literal: | output
 	@echo TEST: input/literal.hpwiki
-	./src/hyperpolywiki_to_html.py \
+	./src/wikidot_to_html.py \
 	< test/input/literal.hpwiki \
 	> output/literal.html
 	diff test/expected.output/literal.html output/literal.html
@@ -99,7 +99,7 @@ test.literal: | output
 .PHONY: test.math
 test.math: | output
 	@echo TEST: input/math.hpwiki
-	./src/hyperpolywiki_to_html.py \
+	./src/wikidot_to_html.py \
 	< test/input/math.hpwiki \
 	> output/math.html
 	diff test/expected.output/math.html output/math.html
@@ -107,7 +107,7 @@ test.math: | output
 .PHONY: test.table
 test.table: | output
 	@echo TEST: input/table.hpwiki
-	./src/hyperpolywiki_to_html.py \
+	./src/wikidot_to_html.py \
 	< test/input/table.hpwiki \
 	> output/table.html
 	diff test/expected.output/table.html output/table.html
