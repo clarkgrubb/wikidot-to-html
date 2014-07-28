@@ -64,6 +64,18 @@ def analyze_line(line):
     raise Exception('unparseable line: {}'.format(line))
 
 
+class Phrase(object):
+
+    def __init__(self):
+        self.italic = False
+        self.bold = False
+        self.literal = False
+        self.fixed_width = False
+
+    def render(self, content):
+        return cgi.escape(content)
+
+
 class Block(object):
 
     def __init__(self, line, block_type=None, match=None):
@@ -98,16 +110,17 @@ class Block(object):
     def write_open_tag(self, output_stream):
         output_stream.write('<{}>'.format(self.tag))
 
-    def write_content(self, output_stream):
+    def write_content(self, phrase, output_stream):
         for match in self.matches:
-            output_stream.write(cgi.escape(match.group('content')))
+            output_stream.write(phrase.render(match.group('content')))
 
     def write_close_tag(self, output_stream):
         output_stream.write('</{}>\n'.format(self.tag))
 
     def close(self, output_stream):
+        phrase = Phrase()
         self.write_open_tag(output_stream)
-        self.write_content(output_stream)
+        self.write_content(phrase, output_stream)
         self.write_close_tag(output_stream)
 
 
@@ -126,10 +139,10 @@ class UnorderedList(Block):
     def write_open_tag(self, output_stream):
         output_stream.write('<{}>\n'.format(self.tag))
 
-    def write_content(self, output_stream):
+    def write_content(self, phrase, output_stream):
         for match in self.matches:
             output_stream.write('<li>')
-            output_stream.write(cgi.escape(match.group('content')))
+            output_stream.write(phrase.render(match.group('content')))
             output_stream.write('</li>\n')
 
 
@@ -140,10 +153,10 @@ class OrderedList(Block):
     def write_open_tag(self, output_stream):
         output_stream.write('<{}>\n'.format(self.tag))
 
-    def write_content(self, output_stream):
+    def write_content(self, phrase, output_stream):
         for match in self.matches:
             output_stream.write('<li>')
-            output_stream.write(cgi.escape(match.group('content')))
+            output_stream.write(phrase.render(match.group('content')))
             output_stream.write('</li>\n')
 
 
@@ -160,8 +173,8 @@ class Paragraph(Block):
     def __init__(self, line, match):
         Block.__init__(self, line, BLOCK_TYPE_P, match)
 
-    def write_content(self, output_stream):
-        content = [cgi.escape(match.group('content'))
+    def write_content(self, phrase, output_stream):
+        content = [phrase.render(match.group('content'))
                    for match
                    in self.matches]
         output_stream.write('<br />\n'.join(content))

@@ -104,6 +104,14 @@ test.math: | output
 	> output/math.html
 	diff test/expected.output/math.html output/math.html
 
+.PHONY: test.phrase
+test.phrase: | output
+	@echo TEST: input/phrase.hpwiki
+	./src/wikidot_to_html.py \
+	< test/input/phrase.hpwiki \
+	> output/phrase.html
+	diff test/expected.output/phrase.html output/phrase.html
+
 .PHONY: test.table
 test.table: | output
 	@echo TEST: input/table.hpwiki
@@ -114,7 +122,7 @@ test.table: | output
 
 # no test.div
 .PHONY: test
-test: test.blocks test.block-quote test.comment test.font test.headers test.html-entities test.image test.links test.lists test.literal test.math test.math test.table
+test: test.blocks test.block-quote test.comment test.font test.headers test.html-entities test.image test.links test.lists test.literal test.math test.math test.phrase test.table
 
 .PHONY: all
 all:
