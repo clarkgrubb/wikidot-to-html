@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 
 import argparse
+import cgi
 import re
 import sys
 
 BLOCK_TYPE_P = 'p'
 BLOCK_TYPE_UL = 'ul'
 BLOCK_TYPE_OL = 'ol'
+BLOCK_TYPE_BLOCKQUOTE = 'blockquote'
 BLOCK_TYPE_TABLE = 'table'
-BLOCK_TYPE_HN = 'hn'
 BLOCK_TYPE_H1 = 'h1'
 BLOCK_TYPE_H2 = 'h2'
 BLOCK_TYPE_H3 = 'h3'
@@ -16,7 +17,9 @@ BLOCK_TYPE_H4 = 'h4'
 BLOCK_TYPE_H5 = 'h5'
 BLOCK_TYPE_H6 = 'h6'
 BLOCK_TYPE_HR = 'hr'
-BLOCK_TYPE_EMPTY = 'empty'
+
+BLOCK_TYPE_HN = '_hn'
+BLOCK_TYPE_EMPTY = '_empty'
 
 MULTILINE_BLOCK_TYPES = [BLOCK_TYPE_P,
                          BLOCK_TYPE_UL,
@@ -25,6 +28,8 @@ MULTILINE_BLOCK_TYPES = [BLOCK_TYPE_P,
 
 REGEX_UL = re.compile(r'^(?P<indent>\s*)\*\s+(?P<content>\S.*)$')
 REGEX_OL = re.compile(r'^(?P<indent>\s*)\#\s+(?P<content>\S.*)$')
+REGEX_BLOCKQUOTE = re.compile(
+    r'^(?P<greater_than_signs>>+)\s*(?P<content>.*)$')
 REGEX_TABLE = re.compile(r'^(?P<indent>\s*)(?P<content>\|\|.*)$')
 REGEX_HN = re.compile(
     r'^(?P<indent>\s*)(?P<plus_signs>\+{1,6})\s+(?P<content>\S.*)$')
@@ -95,7 +100,7 @@ class Block(object):
 
     def write_content(self, output_stream):
         for match in self.matches:
-            output_stream.write(match.group('content'))
+            output_stream.write(cgi.escape(match.group('content')))
 
     def write_close_tag(self, output_stream):
         output_stream.write('</{}>\n'.format(self.tag))
@@ -124,7 +129,7 @@ class UnorderedList(Block):
     def write_content(self, output_stream):
         for match in self.matches:
             output_stream.write('<li>')
-            output_stream.write(match.group('content'))
+            output_stream.write(cgi.escape(match.group('content')))
             output_stream.write('</li>\n')
 
 
@@ -138,7 +143,7 @@ class OrderedList(Block):
     def write_content(self, output_stream):
         for match in self.matches:
             output_stream.write('<li>')
-            output_stream.write(match.group('content'))
+            output_stream.write(cgi.escape(match.group('content')))
             output_stream.write('</li>\n')
 
 
@@ -156,7 +161,9 @@ class Paragraph(Block):
         Block.__init__(self, line, BLOCK_TYPE_P, match)
 
     def write_content(self, output_stream):
-        content = [match.group('content') for match in self.matches]
+        content = [cgi.escape(match.group('content'))
+                   for match
+                   in self.matches]
         output_stream.write('<br />\n'.join(content))
 
 
@@ -175,10 +182,39 @@ def block_factory(line, block_type=None, match=None):
         return Block(line, block_type, match)
 
 
+def adjust_blockquote_level(output_stream, current_block, line, bq_level):
+    md = REGEX_BLOCKQUOTE.search(line)
+    if md:
+        new_bq_level = len(md.group('greater_than_signs'))
+        line = md.group('content')
+    else:
+        new_bq_level = 0
+
+    if current_block and new_bq_level != bq_level:
+        current_block.close(output_stream)
+        current_block = None
+
+    if new_bq_level > bq_level:
+        for _ in range(0, new_bq_level - bq_level):
+            output_stream.write('<blockquote>\n')
+    elif new_bq_level < bq_level:
+        for _ in range(0, bq_level - new_bq_level):
+            output_stream.write('</blockquote>\n')
+
+    return line, new_bq_level, current_block
+
+
 def process_lines(input_stream, output_stream):
     current_block = None
+    bq_level = 0
     for line in input_stream:
+        line, bq_level, current_block = adjust_blockquote_level(output_stream,
+                                                                current_block,
+                                                                line,
+                                                                bq_level)
+
         block_type, match = analyze_line(line)
+
         if not current_block:
             current_block = block_factory(line, block_type, match)
         elif (block_type == current_block.block_type and
@@ -192,8 +228,10 @@ def process_lines(input_stream, output_stream):
     if current_block:
         current_block.close(output_stream)
 
+    adjust_blockquote_level(output_stream, None, '', bq_level)
 
-def hyperwiki_to_html(input_stream, output_stream):
+
+def wikidot_to_html(input_stream, output_stream):
     process_lines(input_stream, output_stream)
 
 
@@ -201,4 +239,4 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     args = parser.parse_args()
 
-    hyperwiki_to_html(sys.stdin, sys.stdout)
+    wikidot_to_html(sys.stdin, sys.stdout)

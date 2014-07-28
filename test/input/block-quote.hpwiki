@@ -2,8 +2,24 @@ Not a block quote
 
 > This is a
 > block quote
+>
+> and this
+> * one
+> * two
+>
+> ||foo||bar||
+> ||baz||wumpus||
+>
+>> blockquote inside
+>> a blockquote
+>
+> > what about this?
+>
+> more stuff
 
 Outside of the block quote again.
+
+  > What is this? 
 
 This is code:
 
