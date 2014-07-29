@@ -16,7 +16,7 @@ test.blocks: | output
 	> output/blocks.html
 	diff test/expected.output/blocks.html output/blocks.html
 
-.PHONY: test.blocks
+.PHONY: test.block-quote
 test.block-quote: | output
 	@echo TEST: input/block-quote.wikidot
 	./src/wikidot_to_html.py \
@@ -32,7 +32,7 @@ test.comment: | output
 	> output/comment.html
 	diff test/expected.output/comment.html output/comment.html
 
-.PHONY: test.blocks
+.PHONY: test.div
 test.div: | output
 	@echo TEST: input/div.wikidot
 	./src/wikidot_to_html.py \
