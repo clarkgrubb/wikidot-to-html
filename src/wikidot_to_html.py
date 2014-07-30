@@ -139,10 +139,8 @@ class Phrase(object):
         tokens = []
         for word in words:
             tokens.extend(REGEX_MARKERS.split(word))
-
         top_node = Node()
         self.nodes = [top_node]
-
         tokens = [token for token in tokens if token]
 
         for i, token in enumerate(tokens):
