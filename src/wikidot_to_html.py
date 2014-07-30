@@ -155,7 +155,8 @@ class Phrase(object):
                     else:
                         self.nodes[-1].children.append('//')
                 elif not self.italic:
-                    if i < len(tokens) - 1 and not REGEX_WHITESPACE.match(tokens[i + 1]):
+                    if i < len(tokens) - 1 and \
+                       not REGEX_WHITESPACE.match(tokens[i + 1]):
                         nd = Italic()
                         self.nodes[-1].children.append(nd)
                         self.nodes.append(nd)
@@ -169,7 +170,8 @@ class Phrase(object):
                     else:
                         self.nodes[-1].children.append('@@')
                 elif not self.bold:
-                    if i < len(tokens) - 1 and not REGEX_WHITESPACE.match(tokens[i + 1]):
+                    if i < len(tokens) - 1 and \
+                       not REGEX_WHITESPACE.match(tokens[i + 1]):
                         nd = Bold()
                         self.nodes[-1].children.append(nd)
                         self.nodes.append(nd)
@@ -180,7 +182,8 @@ class Phrase(object):
                 self.nodes[-1].children.append('@@')
             elif token == '{{':
                 if not self.fixed_width:
-                    if i < len(tokens) - 1 and not REGEX_WHITESPACE.match(tokens[i + 1]):
+                    if i < len(tokens) - 1 and \
+                       not REGEX_WHITESPACE.match(tokens[i + 1]):
                         nd = FixedWidth()
                         self.nodes[-1].children.append(nd)
                         self.nodes.append(nd)
