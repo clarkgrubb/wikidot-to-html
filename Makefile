@@ -120,9 +120,18 @@ test.table: | output
 	> output/table.html
 	diff test/expected.output/table.html output/table.html
 
+.PHONY: test.whitespace
+test.whitespace: | output
+	@echo TEST: input/whitespace.wikidot
+	./src/wikidot_to_html.py \
+	< test/input/whitespace.wikidot \
+	> output/whitespace.html
+	diff test/expected.output/whitespace.html output/whitespace.html
+
+
 # no test.div
 .PHONY: test
-test: test.blocks test.block-quote test.comment test.font test.headers test.html-entities test.image test.links test.lists test.literal test.math test.math test.phrase test.table
+test: test.blocks test.block-quote test.comment test.font test.headers test.html-entities test.image test.links test.lists test.literal test.math test.math test.phrase test.table test.whitespace
 
 .PHONY: all
 all:

@@ -2,8 +2,11 @@
 
 import argparse
 import cgi
+import pprint
 import re
 import sys
+
+PP = pprint.PrettyPrinter()
 
 BLOCK_TYPE_P = 'p'
 BLOCK_TYPE_UL = 'ul'
@@ -36,6 +39,8 @@ REGEX_HN = re.compile(
 REGEX_HR = re.compile(r'^(?P<indent>\s*)----(?P<content>)$')
 REGEX_EMPTY = re.compile(r'^\s*$')
 REGEX_P = re.compile(r'^(?P<content>.*)$')
+REGEX_MARKERS = re.compile(r'(//|\*\*\|\{\{|\}\}|@@)')
+REGEX_WHITESPACE = re.compile(r'(\s+)')
 
 
 def analyze_line(line):
@@ -64,6 +69,44 @@ def analyze_line(line):
     raise Exception('unparseable line: {}'.format(line))
 
 
+class Node(object):
+    def __init__(self):
+        self.children = []
+
+    def __str__(self):
+        return ''.join([str(child) for child in self.children])
+
+
+class Italic(object):
+    def __init__(self):
+        self.children = []
+
+    def __str__(self):
+        s = ''.join([str(child) for child in self.children])
+
+        return '<em>{}</em>'.format(s)
+
+
+class Bold(object):
+    def __init__(self):
+        self.children = []
+
+    def __str__(self):
+        s = ''.join([str(child) for child in self.children])
+
+        return '<strong>{}</strong>'.format(s)
+
+
+class FixedWidth(object):
+    def __init__(self):
+        self.children = []
+
+    def __str__(self):
+        s = ''.join([str(child) for child in self.children])
+
+        return '<tt>{}</tt>'.format(s)
+
+
 class Phrase(object):
 
     def __init__(self):
@@ -71,9 +114,81 @@ class Phrase(object):
         self.bold = False
         self.literal = False
         self.fixed_width = False
+        self.nodes = None
+
+    def _adjust_flags(self, cls):
+        if cls == Italic:
+            self.italic = False
+        elif cls == Bold:
+            self.bold = False
+        elif cls == FixedWidth:
+            self.fixed_width = False
+        else:
+            raise Exception('bam: {}'.format(cls))
+
+    def _remove_node(self, cls):
+        while self.nodes and type(self.nodes[-1]) != cls:
+            self._adjust_flags(type(self.nodes.pop()))
+        if self.nodes and self.nodes[-1] == cls:
+            self._adjust_flags(type(self.nodes.pop()))
+        else:
+            raise Exception('no node of type {} on stack'.format(cls))
 
     def render(self, content):
-        return cgi.escape(content)
+        words = REGEX_WHITESPACE.split(content)
+        tokens = []
+        for word in words:
+            tokens.extend(REGEX_MARKERS.split(word))
+
+        top_node = Node()
+        self.nodes = [top_node]
+
+        for i, token in enumerate(tokens):
+            if REGEX_WHITESPACE.match(token):
+                self.nodes[-1].children.append(' ')
+            elif token == '//':
+                if self.italic:
+                    if i > 0 and not REGEX_WHITESPACE.match(tokens[i - 1]):
+                        self._remove_node(Italic)
+                    else:
+                        self.nodes[-1].children.append('//')
+                if not self.italic:
+                    if i < len(tokens) - 1 and not REGEX_WHITESPACE.match(tokens[i + 1]):
+                        self.nodes.append(Italic())
+                        self.italic = True
+                    else:
+                        self.nodes[-1].children.append('//')
+            elif token == '**':
+                if self.bold:
+                    if i > 0 and not REGEX_WHITESPACE.match(tokens[i - 1]):
+                        self._remove_node(Bold)
+                    else:
+                        self.nodes[-1].children.append('@@')
+                if not self.bold:
+                    if i < len(tokens) - 1 and not REGEX_WHITESPACE.match(tokens[i + 1]):
+                        self.nodes.append(Bold())
+                        self.bold = True
+                    else:
+                        self.nodes[-1].children.append('@@')
+            elif token == '@@':
+                self.nodes[-1].children.append('@@')
+            elif token == '{{':
+                if not self.fixed_width:
+                    if i < len(tokens) - 1 and not REGEX_WHITESPACE.match(tokens[i + 1]):
+                        self.nodes.append(FixedWidth())
+                        self.fixed_width = True
+                    else:
+                        self.nodes[-1].children.append('{{')
+            elif token == '}}':
+                if self.fixed_width:
+                    if i > 0 and not REGEX_WHITESPACE.match(tokens[i - 1]):
+                        self._remove_node(FixedWidth)
+                    else:
+                        self.nodes[-1].children.append('}}')
+            else:
+                self.nodes[-1].children.append(cgi.escape(token))
+
+        return str(top_node)
 
 
 class Block(object):
