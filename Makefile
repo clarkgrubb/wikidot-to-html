@@ -131,7 +131,13 @@ test.whitespace: | output
 
 # no test.div
 .PHONY: test
-test: test.blocks test.block-quote test.comment test.font test.headers test.html-entities test.image test.links test.lists test.literal test.math test.math test.phrase test.table test.whitespace
+test: test.blocks test.block-quote test.comment test.font test.headers test.html-entities test.image test.links test.lists test.literal test.math test.phrase test.table test.whitespace
+
+.PHONY: test.passing
+test.passing: test.blocks test.html-entities test.phrase test.whitespace
+
+.PHONY: test.failing
+test.failing: test.block-quote test.comment test.font test.headers test.image test.links test.lists test.literal test.math test.table
 
 .PHONY: all
 all:

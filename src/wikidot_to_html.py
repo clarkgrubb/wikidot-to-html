@@ -129,7 +129,7 @@ class Phrase(object):
     def _remove_node(self, cls):
         while self.nodes and type(self.nodes[-1]) != cls:
             self._adjust_flags(type(self.nodes.pop()))
-        if self.nodes and self.nodes[-1] == cls:
+        if self.nodes and type(self.nodes[-1]) == cls:
             self._adjust_flags(type(self.nodes.pop()))
         else:
             raise Exception('no node of type {} on stack'.format(cls))
@@ -143,6 +143,8 @@ class Phrase(object):
         top_node = Node()
         self.nodes = [top_node]
 
+        tokens = [token for token in tokens if token]
+
         for i, token in enumerate(tokens):
             if REGEX_WHITESPACE.match(token):
                 self.nodes[-1].children.append(' ')
@@ -152,9 +154,11 @@ class Phrase(object):
                         self._remove_node(Italic)
                     else:
                         self.nodes[-1].children.append('//')
-                if not self.italic:
+                elif not self.italic:
                     if i < len(tokens) - 1 and not REGEX_WHITESPACE.match(tokens[i + 1]):
-                        self.nodes.append(Italic())
+                        nd = Italic()
+                        self.nodes[-1].children.append(nd)
+                        self.nodes.append(nd)
                         self.italic = True
                     else:
                         self.nodes[-1].children.append('//')
@@ -164,9 +168,11 @@ class Phrase(object):
                         self._remove_node(Bold)
                     else:
                         self.nodes[-1].children.append('@@')
-                if not self.bold:
+                elif not self.bold:
                     if i < len(tokens) - 1 and not REGEX_WHITESPACE.match(tokens[i + 1]):
-                        self.nodes.append(Bold())
+                        nd = Bold()
+                        self.nodes[-1].children.append(nd)
+                        self.nodes.append(nd)
                         self.bold = True
                     else:
                         self.nodes[-1].children.append('@@')
@@ -175,7 +181,9 @@ class Phrase(object):
             elif token == '{{':
                 if not self.fixed_width:
                     if i < len(tokens) - 1 and not REGEX_WHITESPACE.match(tokens[i + 1]):
-                        self.nodes.append(FixedWidth())
+                        nd = FixedWidth()
+                        self.nodes[-1].children.append(nd)
+                        self.nodes.append(nd)
                         self.fixed_width = True
                     else:
                         self.nodes[-1].children.append('{{')
