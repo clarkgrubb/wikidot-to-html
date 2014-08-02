@@ -39,7 +39,7 @@ RX_HN = re.compile(
 RX_HR = re.compile(r'^(?P<indent>\s*)----(?P<content>)$')
 RX_EMPTY = re.compile(r'^\s*$')
 RX_P = re.compile(r'^(?P<content>.*)$')
-RX_MARKERS = re.compile(r'(//|\*\*|\{\{|\}\}|@@)')
+RX_MARKERS = re.compile(r'(//|\*\*|\{\{|\}\}|@@|\[!--|--\])')
 RX_WHITESPACE = re.compile(r'(\s+)')
 
 
@@ -157,6 +157,7 @@ class PhraseParser(object):
         self.bold = False
         self.literal = False
         self.fixed_width = False
+        self.comment = False
         self.top_node = Node()
         self.nodes = [self.top_node]
 
@@ -232,8 +233,14 @@ class PhraseParser(object):
 
     def parse(self, tokens):
         for i, token in enumerate(tokens):
-            if RX_WHITESPACE.match(token):
+            if self.comment and token == '--]':
+                self.comment = False
+            elif self.comment:
+                pass
+            elif RX_WHITESPACE.match(token):
                 self.add_text(' ')
+            elif token == '[!--':
+                self.comment = True
             elif token == '//':
                 if self.italic:
                     if i > 0 and not RX_WHITESPACE.match(tokens[i - 1]):
@@ -358,7 +365,6 @@ class UnorderedList(Block):
             output_stream.write('</li>\n')
 
 
-
 class OrderedList(Block):
     def __init__(self, line, match):
         Block.__init__(self, line, BLOCK_TYPE_OL, match)
@@ -389,13 +395,22 @@ class Paragraph(Block):
     def __init__(self, line, match):
         Block.__init__(self, line, BLOCK_TYPE_P, match)
 
-    def write_content(self, parser, output_stream):
+    def get_content(self, parser):
         tokens = []
         for i, match in enumerate(self.matches):
             parser.parse(lex(match.group('content')))
             if i < len(self.matches) - 1:
                 parser.add_text(LINE_BREAK)
-        output_stream.write(str(parser.top_node))
+
+        return str(parser.top_node)
+
+    def close(self, output_stream):
+        phrase = PhraseParser()
+        content = self.get_content(phrase)
+        if content:
+            self.write_open_tag(output_stream)
+            output_stream.write(content)
+            self.write_close_tag(output_stream)
 
 
 def block_factory(line, block_type=None, match=None):
