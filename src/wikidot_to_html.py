@@ -39,9 +39,11 @@ RX_HN = re.compile(
 RX_HR = re.compile(r'^(?P<indent>\s*)----(?P<content>)$')
 RX_EMPTY = re.compile(r'^\s*$')
 RX_P = re.compile(r'^(?P<content>.*)$')
-RX_MARKERS = re.compile(r'(//|\*\*|\{\{|\}\}|@@|\[!--|--\]|--|__|,,|\^\^|\[\[span [^\]]+\]\]|\[\[/span\]\]|\]\]|##)')
+RX_MARKERS = re.compile(r'(//|\*\*|\{\{|\}\}|@@|\[!--|--\]|--|__|,,|\^\^|\[\[span [^\]]+\]\]|\[\[/span\]\]|\[\[/size\]\]|\]\]|##)')
 RX_WHITESPACE = re.compile(r'(\s+)')
 RX_SPAN = re.compile(r'^\[\[span ([^\]]+)\]\]$')
+RX_SIZE = re.compile(r'^\[\[size ([^\]]+)\]\]$')
+RX_RGB = re.compile(r'^[a-fA-F0-9]{6}$')
 
 
 def analyze_line(line):
@@ -170,12 +172,17 @@ class Superscript(Node):
 
 class Span(Node):
     def __init__(self, raw_tag, tag):
-        Node.__init__(self, tag, tag, 'span')
+        Node.__init__(self, raw_tag, tag, 'span')
 
 
 class Color(Node):
     def __init__(self, raw_tag, tag):
-        Node.__init__(self, tag, tag, 'span')
+        Node.__init__(self, raw_tag, tag, 'span')
+
+
+class Size(Node):
+    def __init__(self, raw_tag, tag):
+        Node.__init__(self, raw_tag, tag, 'span')
 
 
 class LineBreak(Node):
@@ -198,23 +205,40 @@ def lex(text):
     tokens = []
 
     inside_span = False
+    inside_size = False
     inside_color = False
     inside_color_head = False
     span = []
-    color_head = []
+    size = []
     for token in raw_tokens:
-        if token.endswith(']]'):
+        if inside_span and token == ']]':
             inside_span = False
             span.append(token)
             tokens.append(''.join(span))
             span = []
+        elif inside_size and token == ']]':
+            inside_size = False
+            size.append(token)
+            tokens.append(''.join(size))
+            size = []
         elif inside_span:
             span.append(token)
+        elif inside_size:
+            size.append(token)
         elif inside_color_head:
-            raise Exception('implement me')
+            a = token.split('|', 1)
+            if len(a) == 2:
+                tokens.append('##{}|'.format(a[0]))
+                tokens.append(a[1])
+            else:
+                tokens.append('##{}'.format(token))
+            inside_color_head = False
         elif token == '[[span':
             inside_span = True
             span.append(token)
+        elif token == '[[size':
+            inside_size = True
+            size.append(token)
         elif token == '##':
             if inside_color:
                 inside_color = False
@@ -222,7 +246,6 @@ def lex(text):
             else:
                 inside_color = True
                 inside_color_head = True
-                color_head.append(token)
         else:
             tokens.append(token)
 
@@ -242,6 +265,8 @@ class PhraseParser(object):
         self.superscript = False
         self.comment = False
         self.span_depth = 0
+        self.color = False
+        self.size = False
         self.top_node = Node()
         self.nodes = [self.top_node]
         self.tokens = None
@@ -271,6 +296,10 @@ class PhraseParser(object):
                 self.span_depth -= 1
             if self.span_depth < 0:
                 raise Exception('negative span depth')
+        elif cls == Color:
+            self.color = value
+        elif cls == Size:
+            self.size = value
         elif cls == Node:
             pass
         else:
@@ -369,6 +398,37 @@ class PhraseParser(object):
                     nd.set_closure(CLOSED_NODE)
                 else:
                     self.add_text(token)
+            elif token.startswith('[[size'):
+                md = RX_SIZE.search(token)
+                if md:
+                    attributes = md.groups()[0]
+                    self.add_node(Size(token, 'span style="font-size:{};"'.format(attributes)))
+                else:
+                    self.add_text(token)
+            elif token == '[[/size]]':
+                if self.size:
+                    nd = self.remove_node(Size)
+                    nd.set_closure(CLOSED_NODE)
+                else:
+                    self.add_text(token)
+            elif token == '##':
+                if self.color:
+                    nd = self.remove_node(Color)
+                    nd.set_closure(CLOSED_NODE)
+                else:
+                    self.add_text(token)
+            elif token.startswith('##'):
+                if self.color:
+                    raise Exception('FIXME: nested color')
+                if token.endswith('|'):
+                    color = token[2:-1]
+                    if RX_RGB.search(color):
+                        tag = 'span style="color: #{}"'.format(color.lower())
+                    else:
+                        tag = 'span style="color: {}"'.format(color)
+                    self.add_node(Color(token, tag))
+                else:
+                    self.add_text(token)
             elif token == '--':
                 self.handle_token(i, '--', self.strike_thru, StrikeThru)
             elif token == '__':
@@ -425,9 +485,6 @@ class Block(object):
         self.matches.append(match)
 
     def _tag(self):
-        if self.block_type == BLOCK_TYPE_HN:
-            len_plus_signs = len(self.matches[0].group('plus_signs'))
-            return 'h{}'.format(len_plus_signs)
         return self.block_type
 
     def multiline_type(self):
@@ -449,6 +506,30 @@ class Block(object):
         self.write_open_tag(output_stream)
         self.write_content(phrase, output_stream)
         self.write_close_tag(output_stream)
+
+
+class Header(Block):
+
+    global next_toc_number
+    next_toc_number = 0
+
+    def __init__(self, line, match):
+        global next_toc_number
+        Block.__init__(self, line, BLOCK_TYPE_HN, match)
+        self.toc_number = next_toc_number
+        next_toc_number += 1
+
+    def write_open_tag(self, output_stream):
+        output_stream.write('<{} id="toc{}"><span>'.format(self.tag,
+                                                           self.toc_number))
+
+    def write_close_tag(self, output_stream):
+        output_stream.write('</span></{}>\n'.format(self.tag))
+
+    def _tag(self):
+        len_plus_signs = len(self.matches[0].group('plus_signs'))
+        return 'h{}'.format(len_plus_signs)
+
 
 
 class HorizontalRule(Block):
@@ -537,6 +618,8 @@ def block_factory(line, block_type=None, match=None):
         return HorizontalRule(line, match)
     elif block_type == BLOCK_TYPE_P:
         return Paragraph(line, match)
+    elif block_type == BLOCK_TYPE_HN:
+        return Header(line, match)
     else:
         return Block(line, block_type, match)
 
