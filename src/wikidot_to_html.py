@@ -39,7 +39,9 @@ RX_HN = re.compile(
 RX_HR = re.compile(r'^(?P<indent>\s*)----(?P<content>)$')
 RX_EMPTY = re.compile(r'^\s*$')
 RX_P = re.compile(r'^(?P<content>.*)$')
-RX_MARKERS = re.compile(r'(//|\*\*|\{\{|\}\}|@@|\[!--|--\]|--|__|,,|\^\^|\[\[span [^\]]+\]\]|\[\[/span\]\]|\[\[/size\]\]|\]\]|##)')
+RX_MARKERS = re.compile(r'(//|\*\*|\{\{|\}\}|@@|\[!--|--\]|--|__|,,|\^\^|'
+                        r'\[\[span [^\]]+\]\]|\[\[/span\]\]|\[\[/size\]\]|'
+                        r'\]\]|##)')
 RX_WHITESPACE = re.compile(r'(\s+)')
 RX_SPAN = re.compile(r'^\[\[span ([^\]]+)\]\]$')
 RX_SIZE = re.compile(r'^\[\[size ([^\]]+)\]\]$')
@@ -402,7 +404,9 @@ class PhraseParser(object):
                 md = RX_SIZE.search(token)
                 if md:
                     attributes = md.groups()[0]
-                    self.add_node(Size(token, 'span style="font-size:{};"'.format(attributes)))
+                    self.add_node(
+                        Size(token,
+                             'span style="font-size:{};"'.format(attributes)))
                 else:
                     self.add_text(token)
             elif token == '[[/size]]':
@@ -510,14 +514,12 @@ class Block(object):
 
 class Header(Block):
 
-    global next_toc_number
     next_toc_number = 0
 
     def __init__(self, line, match):
-        global next_toc_number
         Block.__init__(self, line, BLOCK_TYPE_HN, match)
-        self.toc_number = next_toc_number
-        next_toc_number += 1
+        self.toc_number = Header.next_toc_number
+        Header.next_toc_number += 1
 
     def write_open_tag(self, output_stream):
         output_stream.write('<{} id="toc{}"><span>'.format(self.tag,
@@ -529,7 +531,6 @@ class Header(Block):
     def _tag(self):
         len_plus_signs = len(self.matches[0].group('plus_signs'))
         return 'h{}'.format(len_plus_signs)
-
 
 
 class HorizontalRule(Block):
