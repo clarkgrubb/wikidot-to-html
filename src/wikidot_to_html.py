@@ -39,8 +39,9 @@ RX_HN = re.compile(
 RX_HR = re.compile(r'^(?P<indent>\s*)----(?P<content>)$')
 RX_EMPTY = re.compile(r'^\s*$')
 RX_P = re.compile(r'^(?P<content>.*)$')
-RX_MARKERS = re.compile(r'(//|\*\*|\{\{|\}\}|@@|\[!--|--\])')
+RX_MARKERS = re.compile(r'(//|\*\*|\{\{|\}\}|@@|\[!--|--\]|--|__|,,|\^\^|\[\[span [^\]]+\]\]|\[\[/span\]\]|\]\]|##)')
 RX_WHITESPACE = re.compile(r'(\s+)')
+RX_SPAN = re.compile(r'^\[\[span ([^\]]+)\]\]$')
 
 
 def analyze_line(line):
@@ -69,21 +70,31 @@ def analyze_line(line):
     raise Exception('unparseable line: {}'.format(line))
 
 
+class ClosureNode(object):
+    def __init__(self, is_closed):
+        self.is_closed = is_closed
+
+    def closed(self):
+        return self.is_closed
+
+
+OPEN_NODE = ClosureNode(False)
+CLOSED_NODE = ClosureNode(True)
+
+
 class Node(object):
-    def __init__(self, raw_tag='', tag=''):
+    def __init__(self, raw_tag='', open_tag='', close_tag=None):
         self.children = []
         self.raw_tag = raw_tag
-        self.tag = tag
-        self.closure = False
+        self.open_tag = open_tag
+        self.close_tag = open_tag if close_tag is None else close_tag
+        self.closure = OPEN_NODE
 
     def set_closure(self, nd=True):
         self.closure = nd
 
     def closed(self):
-        if type(self.closure) == bool:
-            return self.closure
-        else:
-            return self.closure.closed()
+        return self.closure.closed()
 
     def __str__(self):
         if len(self.children) == 0:
@@ -107,9 +118,9 @@ class Node(object):
         if self.closed():
             if rest:
                 return '{}<{}>{}</{}>'.format(first,
-                                              self.tag,
+                                              self.open_tag,
                                               rest,
-                                              self.tag)
+                                              self.close_tag)
             else:
                 return first
         else:
@@ -130,9 +141,46 @@ class FixedWidth(Node):
     def __init__(self, raw_tag='{{'):
         Node.__init__(self, raw_tag, 'tt')
 
+
+class StrikeThru(Node):
+    def __init__(self, raw_tag='--'):
+        Node.__init__(self,
+                      raw_tag,
+                      'span style="text-decoration: line-through;"',
+                      'span')
+
+
+class Underline(Node):
+    def __init__(self, raw_tag='__'):
+        Node.__init__(self,
+                      raw_tag,
+                      'span style="text-decoration: underline;"',
+                      'span')
+
+
+class Subscript(Node):
+    def __init__(self, raw_tag=',,'):
+        Node.__init__(self, raw_tag, 'sub')
+
+
+class Superscript(Node):
+    def __init__(self, raw_tag='^^'):
+        Node.__init__(self, raw_tag, 'sup')
+
+
+class Span(Node):
+    def __init__(self, raw_tag, tag):
+        Node.__init__(self, tag, tag, 'span')
+
+
+class Color(Node):
+    def __init__(self, raw_tag, tag):
+        Node.__init__(self, tag, tag, 'span')
+
+
 class LineBreak(Node):
     def __init__(self):
-        pass
+        Node.__init__(self)
 
     def __str__(self):
         return '<br />\n'
@@ -143,9 +191,40 @@ LINE_BREAK = LineBreak()
 
 def lex(text):
     words = RX_WHITESPACE.split(text)
-    tokens = []
+    raw_tokens = []
     for word in words:
-        tokens.extend(RX_MARKERS.split(word))
+        raw_tokens.extend(RX_MARKERS.split(word))
+
+    tokens = []
+
+    inside_span = False
+    inside_color = False
+    inside_color_head = False
+    span = []
+    color_head = []
+    for token in raw_tokens:
+        if token.endswith(']]'):
+            inside_span = False
+            span.append(token)
+            tokens.append(''.join(span))
+            span = []
+        elif inside_span:
+            span.append(token)
+        elif inside_color_head:
+            raise Exception('implement me')
+        elif token == '[[span':
+            inside_span = True
+            span.append(token)
+        elif token == '##':
+            if inside_color:
+                inside_color = False
+                tokens.append(token)
+            else:
+                inside_color = True
+                inside_color_head = True
+                color_head.append(token)
+        else:
+            tokens.append(token)
 
     return [token for token in tokens if token]
 
@@ -157,9 +236,15 @@ class PhraseParser(object):
         self.bold = False
         self.literal = False
         self.fixed_width = False
+        self.strike_thru = False
+        self.underline = False
+        self.subscript = False
+        self.superscript = False
         self.comment = False
+        self.span_depth = 0
         self.top_node = Node()
         self.nodes = [self.top_node]
+        self.tokens = None
 
     def __str__(self):
         return str(self.top_node)
@@ -171,6 +256,21 @@ class PhraseParser(object):
             self.bold = value
         elif cls == FixedWidth:
             self.fixed_width = value
+        elif cls == StrikeThru:
+            self.strike_thru = value
+        elif cls == Underline:
+            self.underline = value
+        elif cls == Subscript:
+            self.subscript = value
+        elif cls == Superscript:
+            self.superscript = value
+        elif cls == Span:
+            if value:
+                self.span_depth += 1
+            else:
+                self.span_depth -= 1
+            if self.span_depth < 0:
+                raise Exception('negative span depth')
         elif cls == Node:
             pass
         else:
@@ -231,7 +331,22 @@ class PhraseParser(object):
     def add_text(self, s):
         self.nodes[-1].children.append(s)
 
+    def handle_token(self, i, raw_tag, inside_tag, cls):
+        tokens = self.tokens
+        if inside_tag:
+            if i > 0 and not RX_WHITESPACE.match(tokens[i - 1]):
+                nd = self.remove_node(cls)
+                nd.set_closure(CLOSED_NODE)
+            else:
+                self.add_text(raw_tag)
+        else:
+            if i < len(tokens) - 1 and not RX_WHITESPACE.match(tokens[i + 1]):
+                self.add_node(cls())
+            else:
+                self.add_text(raw_tag)
+
     def parse(self, tokens):
+        self.tokens = tokens
         for i, token in enumerate(tokens):
             if self.comment and token == '--]':
                 self.comment = False
@@ -241,32 +356,31 @@ class PhraseParser(object):
                 self.add_text(' ')
             elif token == '[!--':
                 self.comment = True
+            elif token.startswith('[[span'):
+                md = RX_SPAN.search(token)
+                if md:
+                    attributes = md.groups()[0]
+                    self.add_node(Span(token, 'span {}'.format(attributes)))
+                else:
+                    self.add_text(token)
+            elif token == '[[/span]]':
+                if self.span_depth > 0:
+                    nd = self.remove_node(Span)
+                    nd.set_closure(CLOSED_NODE)
+                else:
+                    self.add_text(token)
+            elif token == '--':
+                self.handle_token(i, '--', self.strike_thru, StrikeThru)
+            elif token == '__':
+                self.handle_token(i, '__', self.underline, Underline)
             elif token == '//':
-                if self.italic:
-                    if i > 0 and not RX_WHITESPACE.match(tokens[i - 1]):
-                        nd = self.remove_node(Italic)
-                        nd.set_closure(True)
-                    else:
-                        self.add_text('//')
-                elif not self.italic:
-                    if i < len(tokens) - 1 and \
-                       not RX_WHITESPACE.match(tokens[i + 1]):
-                        self.add_node(Italic())
-                    else:
-                        self.add_text('//')
+                self.handle_token(i, '//', self.italic, Italic)
             elif token == '**':
-                if self.bold:
-                    if i > 0 and not RX_WHITESPACE.match(tokens[i - 1]):
-                        nd = self.remove_node(Bold)
-                        nd.set_closure(True)
-                    else:
-                        self.add_text('**')
-                elif not self.bold:
-                    if i < len(tokens) - 1 and \
-                       not RX_WHITESPACE.match(tokens[i + 1]):
-                        self.add_node(Bold())
-                    else:
-                        self.add_text('**')
+                self.handle_token(i, '**', self.bold, Bold)
+            elif token == ',,':
+                self.handle_token(i, ',,', self.subscript, Subscript)
+            elif token == '^^':
+                self.handle_token(i, '^^', self.superscript, Superscript)
             elif token == '@@':
                 self.add_text('@@')
             elif token == '{{':
@@ -280,7 +394,7 @@ class PhraseParser(object):
                 if self.fixed_width:
                     if i > 0 and not RX_WHITESPACE.match(tokens[i - 1]):
                         nd = self.remove_node(FixedWidth)
-                        nd.set_closure(True)
+                        nd.set_closure(CLOSED_NODE)
                     else:
                         self.add_text('}}')
             else:
@@ -396,7 +510,6 @@ class Paragraph(Block):
         Block.__init__(self, line, BLOCK_TYPE_P, match)
 
     def get_content(self, parser):
-        tokens = []
         for i, match in enumerate(self.matches):
             parser.parse(lex(match.group('content')))
             if i < len(self.matches) - 1:
