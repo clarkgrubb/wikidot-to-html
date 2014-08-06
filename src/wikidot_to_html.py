@@ -29,16 +29,19 @@ MULTILINE_BLOCK_TYPES = [BLOCK_TYPE_P,
                          BLOCK_TYPE_OL,
                          BLOCK_TYPE_TABLE]
 
-RX_UL = re.compile(r'^(?P<indent>\s*)\*\s+(?P<content>\S.*)$')
-RX_OL = re.compile(r'^(?P<indent>\s*)\#\s+(?P<content>\S.*)$')
+RX_UL = re.compile(
+    r'^(?P<indent>\s*)(?P<raw_tag>\*)\s+(?P<content>\S.*?)(?P<br> _)?$')
+RX_OL = re.compile(
+    r'^(?P<indent>\s*)(?P<raw_tag>\#)\s+(?P<content>\S.*?)(?P<br> _)?$')
 RX_BLOCKQUOTE = re.compile(
-    r'^(?P<greater_than_signs>>+)\s*(?P<content>.*)$')
-RX_TABLE = re.compile(r'^(?P<indent>\s*)(?P<content>\|\|.*)$')
+    r'^(?P<greater_than_signs>>+)\s*(?P<content>.*?)(?P<br> _)?$')
+RX_TABLE = re.compile(
+    r'^(?P<indent>\s*)(?P<content>\|\|.*?)(?P<br> _)?$')
 RX_HN = re.compile(
-    r'^(?P<indent>\s*)(?P<plus_signs>\+{1,6})\s+(?P<content>\S.*)$')
-RX_HR = re.compile(r'^(?P<indent>\s*)----(?P<content>)$')
-RX_EMPTY = re.compile(r'^\s*$')
-RX_P = re.compile(r'^(?P<content>.*)$')
+    r'^(?P<indent>\s*)(?P<plus_signs>\+{1,6})\s+(?P<content>\S.*?)(?P<br> _)?$')
+RX_HR = re.compile(r'^(?P<indent>\s*)----(?P<content>)(?P<br> _)?$')
+RX_EMPTY = re.compile(r'^\s*(?P<br> _)?$')
+RX_P = re.compile(r'^(?P<content>.*?)(?P<br> _)?$')
 RX_MARKERS = re.compile(r'(//|\*\*|\{\{|\}\}|@@|\[!--|--\]|--|__|,,|\^\^|'
                         r'\[\[span [^\]]+\]\]|\[\[/span\]\]|\[\[/size\]\]|'
                         r'\]\]|##)')
@@ -483,7 +486,7 @@ class Block(object):
         self.lines.append(line)
         if block_type is None:
             block_type, match = analyze_line(line)
-        if block_type != self.block_type:
+        if block_type != BLOCK_TYPE_P and block_type != self.block_type:
             raise Exception('block type mismatch: {}: {}'.format(
                 self.block_type, block_type))
         self.matches.append(match)
@@ -497,18 +500,18 @@ class Block(object):
     def write_open_tag(self, output_stream):
         output_stream.write('<{}>'.format(self.tag))
 
-    def write_content(self, phrase, output_stream):
+    def write_content(self, parser, output_stream):
         for match in self.matches:
-            phrase.parse(lex(match.group('content')))
-            output_stream.write(str(phrase.top_node))
+            parser.parse(lex(match.group('content')))
+            output_stream.write(str(parser.top_node))
 
     def write_close_tag(self, output_stream):
         output_stream.write('</{}>\n'.format(self.tag))
 
     def close(self, output_stream):
-        phrase = PhraseParser()
+        parser = PhraseParser()
         self.write_open_tag(output_stream)
-        self.write_content(phrase, output_stream)
+        self.write_content(parser, output_stream)
         self.write_close_tag(output_stream)
 
 
@@ -541,41 +544,84 @@ class HorizontalRule(Block):
         output_stream.write('<hr />\n')
 
 
-class UnorderedList(Block):
+class List(Block):
     def __init__(self, line, match):
-        Block.__init__(self, line, BLOCK_TYPE_UL, match)
+        self.raw_tag = match.group('raw_tag')
+        Block.__init__(self, line, self.raw_tag_to_tag(self.raw_tag), match)
+        self.opened_lists = None
+        self.inside_line = None
 
-    def write_open_tag(self, output_stream):
-        output_stream.write('<{}>\n'.format(self.tag))
+    def raw_tag_to_tag(self, raw_tag):
+        if raw_tag == '*':
+            return BLOCK_TYPE_UL
+        elif raw_tag == '#':
+            return BLOCK_TYPE_OL
+        else:
+            raise Exception('unrecognized raw tag {}'.format(raw_tag))
 
-    def write_content(self, phrase, output_stream):
-        top_nodes = []
+    def open_list(self, output_stream, tag, indent):
+        if self.inside_line.get(indent - 1, False):
+            output_stream.write('\n')
+        elif indent > 0:
+            self.open_line(output_stream, indent - 1)
+            output_stream.write('\n')
+        output_stream.write('<{}>\n'.format(tag))
+        self.opened_lists.append(tag)
+
+    def close_list(self, output_stream, indent):
+        if self.inside_line.get(indent, False):
+            self.close_line(output_stream, indent)
+        tag = self.opened_lists.pop()
+        output_stream.write('</{}>\n'.format(tag))
+
+    def open_line(self, output_stream, indent):
+        if self.inside_line.get(indent, False):
+            self.close_line(output_stream, indent)
+        output_stream.write('<li>')
+        self.inside_line[indent] = True
+
+    def close_line(self, output_stream, indent):
+        output_stream.write('</li>\n')
+        self.inside_line[indent] = False
+
+    def write_content(self, output_stream, node):
+        output_stream.write(str(node))
+
+    def close(self, output_stream):
+        parser = PhraseParser()
+        node_tag_indent = []
+
+        triple = None
         for match in self.matches:
-            phrase.parse(lex(match.group('content')))
-            top_nodes.append(phrase.top_node)
-            removed_nodes = phrase.remove_all_nodes()
-            phrase.restore_all_nodes(removed_nodes)
-        for top_node in top_nodes:
-            output_stream.write('<li>')
-            output_stream.write(str(top_node))
-            output_stream.write('</li>\n')
+            if not triple:
+                triple = [None,
+                          self.raw_tag_to_tag(match.group('raw_tag')),
+                          len(match.group('indent'))]
+            content = match.group('content')
+            parser.parse(lex(content))
+            if match.group('br'):
+                parser.add_text(LINE_BREAK)
+            else:
+                triple[0] = parser.top_node
+                node_tag_indent.append(triple)
+                triple = None
+                removed_nodes = parser.remove_all_nodes()
 
+                parser.restore_all_nodes(removed_nodes)
 
-class OrderedList(Block):
-    def __init__(self, line, match):
-        Block.__init__(self, line, BLOCK_TYPE_OL, match)
-
-    def write_open_tag(self, output_stream):
-        output_stream.write('<{}>\n'.format(self.tag))
-
-    def write_content(self, phrase, output_stream):
-        for match in self.matches:
-            output_stream.write('<li>')
-            phrase.parse(lex(match.group('content')))
-            output_stream.write(str(phrase.top_node))
-            removed_nodes = phrase.remove_all_nodes()
-            output_stream.write('</li>\n')
-            phrase.restore_all_nodes(removed_nodes)
+        last_indent = -1
+        self.opened_lists = []
+        self.inside_line = {}
+        for node, tag, indent in node_tag_indent:
+            for i in range(indent, last_indent):
+                self.close_list(output_stream, i + 1)
+            for i in range(last_indent, indent):
+                self.open_list(output_stream, tag, i + 1)
+            self.open_line(output_stream, indent)
+            self.write_content(output_stream, node)
+            last_indent = indent
+        for i in range(-1, last_indent):
+            self.close_list(output_stream, i + 1)
 
 
 class Empty(Block):
@@ -600,8 +646,8 @@ class Paragraph(Block):
         return str(parser.top_node)
 
     def close(self, output_stream):
-        phrase = PhraseParser()
-        content = self.get_content(phrase)
+        parser = PhraseParser()
+        content = self.get_content(parser)
         if content:
             self.write_open_tag(output_stream)
             output_stream.write(content)
@@ -610,9 +656,9 @@ class Paragraph(Block):
 
 def block_factory(line, block_type=None, match=None):
     if block_type == BLOCK_TYPE_UL:
-        return UnorderedList(line, match)
+        return List(line, match)
     elif block_type == BLOCK_TYPE_OL:
-        return OrderedList(line, match)
+        return List(line, match)
     elif block_type == BLOCK_TYPE_EMPTY:
         return Empty(line, match)
     elif block_type == BLOCK_TYPE_HR:
@@ -650,6 +696,7 @@ def adjust_blockquote_level(output_stream, current_block, line, bq_level):
 def process_lines(input_stream, output_stream):
     current_block = None
     bq_level = 0
+    continued_line = False
     for line in input_stream:
         line, bq_level, current_block = adjust_blockquote_level(output_stream,
                                                                 current_block,
@@ -660,6 +707,8 @@ def process_lines(input_stream, output_stream):
 
         if not current_block:
             current_block = block_factory(line, block_type, match)
+        elif continued_line:
+            current_block.add_line(line, block_type, match)
         elif (block_type == current_block.block_type and
               current_block.multiline_type):
             current_block.add_line(line, block_type, match)
@@ -667,6 +716,8 @@ def process_lines(input_stream, output_stream):
             if current_block:
                 current_block.close(output_stream)
             current_block = block_factory(line, block_type, match)
+
+        continued_line = match.group('br')
 
     if current_block:
         current_block.close(output_stream)

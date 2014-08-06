@@ -88,6 +88,22 @@ test.lists: | output
 	> output/lists.html
 	diff test/expected.output/lists.html output/lists.html
 
+.PHONY: test.lists1
+test.lists1: | output
+	@echo TEST: input/lists1.wikidot
+	./src/wikidot_to_html.py \
+	< test/input/lists1.wikidot \
+	> output/lists1.html
+	diff test/expected.output/lists1.html output/lists1.html
+
+.PHONY: test.lists2
+test.lists2: | output
+	@echo TEST: input/lists2.wikidot
+	./src/wikidot_to_html.py \
+	< test/input/lists2.wikidot \
+	> output/lists2.html
+	diff test/expected.output/lists2.html output/lists2.html
+
 .PHONY: test.literal
 test.literal: | output
 	@echo TEST: input/literal.wikidot
@@ -131,13 +147,17 @@ test.whitespace: | output
 
 # no test.div
 .PHONY: test
-test: test.blocks test.block-quote test.comment test.font test.headers test.html-entities test.image test.links test.lists test.literal test.math test.phrase test.table test.whitespace
+test: test.blocks test.block-quote test.comment test.font test.headers
+test: test.html-entities test.image test.links test.lists test.literal
+test: test.math test.phrase test.table test.whitespace
 
 .PHONY: test.passing
-test.passing: test.blocks test.comment test.headers test.html-entities test.phrase test.whitespace
+test.passing: test.blocks test.comment test.headers test.html-entities
+test.passing: test.lists test.lists1 test.lists2 test.phrase test.whitespace
 
 .PHONY: test.failing
-test.failing: test.block-quote test.font test.image test.links test.lists test.literal test.math test.table
+test.failing: test.block-quote test.font test.image test.links
+test.failing: test.literal test.math test.table
 
 .PHONY: all
 all:
