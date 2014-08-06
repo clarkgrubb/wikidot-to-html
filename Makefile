@@ -128,6 +128,14 @@ test.phrase: | output
 	> output/phrase.html
 	diff test/expected.output/phrase.html output/phrase.html
 
+.PHONY: test.span
+test.span: | output
+	@echo TEST: input/span.wikidot
+	./src/wikidot_to_html.py \
+	< test/input/span.wikidot \
+	> output/span.html
+	diff test/expected.output/span.html output/span.html
+
 .PHONY: test.table
 test.table: | output
 	@echo TEST: input/table.wikidot
@@ -152,12 +160,13 @@ test: test.html-entities test.image test.links test.lists test.literal
 test: test.math test.phrase test.table test.whitespace
 
 .PHONY: test.passing
-test.passing: test.blocks test.comment test.headers test.html-entities
+test.passing: test.blocks test.comment test.font test.headers
+test.passing: test.html-entities
 test.passing: test.lists test.lists1 test.lists2 test.phrase test.whitespace
 
 .PHONY: test.failing
-test.failing: test.block-quote test.font test.image test.links
-test.failing: test.literal test.math test.table
+test.failing: test.block-quote test.image test.links
+test.failing: test.literal test.math test.span test.table
 
 .PHONY: all
 all:

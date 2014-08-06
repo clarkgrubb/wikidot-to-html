@@ -17,11 +17,6 @@ This is [[span style="font-variant: small-caps"]]SMALL CAPS text[[/span]].
 
 Put a class on [[span class="foo"]]text[[/span]].
 
-Put another class
-[[span class="bar"]]
-on text
-[[/span]].
-
 Can you solve this: {{x,,1,,^^2^^ = 4}}.
 
 How about this: {{x,,2,, = 4^^2^^}}.
