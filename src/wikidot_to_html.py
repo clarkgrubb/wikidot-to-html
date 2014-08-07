@@ -209,6 +209,14 @@ class Link(Node):
                                     self.close_tag)
 
 
+class Anchor(Node):
+    def __init__(self, raw_tag, name):
+        Node.__init__(self, raw_tag, 'a name="{}"'.format(name), 'a')
+
+    def __str__(self):
+        return '<{}></{}>'.format(self.open_tag, self.close_tag)
+
+
 class LineBreak(Node):
     def __init__(self):
         Node.__init__(self)
@@ -490,8 +498,11 @@ class PhraseParser(object):
                 else:
                     self.add_text(token)
             elif token.startswith('[['):
-                # FIXME
-                pass
+                md = RX_PARSE_DOUBLE_BRACKET.search(token)
+                if md:
+                    self.add_text(str(Anchor(token, md.group('anchor'))))
+                else:
+                    self.add_text(token)
             elif token.startswith('['):
                 md = RX_PARSE_SINGLE_BRACKET.search(token)
                 if md:
