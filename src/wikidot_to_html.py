@@ -38,7 +38,11 @@ RX_BLOCKQUOTE = re.compile(
 RX_TABLE = re.compile(
     r'^(?P<indent>\s*)(?P<content>\|\|.*?)(?P<br> _)?$')
 RX_HN = re.compile(
-    r'^(?P<indent>\s*)(?P<plus_signs>\+{1,6})\s+(?P<content>\S.*?)(?P<br> _)?$')
+    r'^(?P<indent>\s*)'
+    r'(?P<plus_signs>\+{1,6})'
+    r'\s+'
+    r'(?P<content>\S.*?)'
+    r'(?P<br> _)?$')
 RX_HR = re.compile(r'^(?P<indent>\s*)----(?P<content>)(?P<br> _)?$')
 RX_EMPTY = re.compile(r'^\s*(?P<br> _)?$')
 RX_P = re.compile(r'^(?P<content>.*?)(?P<br> _)?$')
@@ -201,60 +205,109 @@ class LineBreak(Node):
 LINE_BREAK = LineBreak()
 
 
+RX_TRIPLE_BRACKET = re.compile(
+    r'(?P<token>^\[\[\[[^\]|]+|[^\]|]+\]\]\])(?P<text>.*)$')
+RX_DOUBLE_BRACKET = re.compile(
+    r'^(?P<token>\[\[[^\]]+\]\])(?P<text>.*)$')
+RX_SINGLE_BRACKET = re.compile(
+    r'^(?P<token>\[[^\]]+\])(?P<text>.*)$')
+RX_DOUBLED_CHAR = re.compile(r'^(//|\*\*|\{\{|\}\}|--|__|,,|\^\^|@@|@<|>@)')
+RX_COMMENT = re.compile(r'^(\[!--.*?--\])(?P<text>.*)$')
+RX_COLOR_HEAD = re.compile(r'^(?P<token>##[a-zA-Z0-9 ]+\|)(?P<text>.*)$')
+RX_LEAD_WHITESPACE = re.compile(r'^(?P<token>\s+)(?P<text>.*)$')
+
+
 def lex(text):
-    words = RX_WHITESPACE.split(text)
-    raw_tokens = []
-    for word in words:
-        raw_tokens.extend(RX_MARKERS.split(word))
 
     tokens = []
 
-    inside_span = False
-    inside_size = False
-    inside_color = False
-    inside_color_head = False
-    span = []
-    size = []
-    for token in raw_tokens:
-        if inside_span and token == ']]':
-            inside_span = False
-            span.append(token)
-            tokens.append(''.join(span))
-            span = []
-        elif inside_size and token == ']]':
-            inside_size = False
-            size.append(token)
-            tokens.append(''.join(size))
-            size = []
-        elif inside_span:
-            span.append(token)
-        elif inside_size:
-            size.append(token)
-        elif inside_color_head:
-            a = token.split('|', 1)
-            if len(a) == 2:
-                tokens.append('##{}|'.format(a[0]))
-                tokens.append(a[1])
-            else:
-                tokens.append('##{}'.format(token))
-            inside_color_head = False
-        elif token == '[[span':
-            inside_span = True
-            span.append(token)
-        elif token == '[[size':
-            inside_size = True
-            size.append(token)
-        elif token == '##':
-            if inside_color:
-                inside_color = False
-                tokens.append(token)
-            else:
-                inside_color = True
-                inside_color_head = True
-        else:
-            tokens.append(token)
+    prefix_and_text = text
+    prefix = ''
+    text_i = 0
+    while text:
+        if text.startswith('['):
+            md = RX_TRIPLE_BRACKET.search(text)
+            if md:
+                if prefix:
+                    tokens.append(prefix)
+                    prefix = ''
+                tokens.append(md.group('token'))
+                prefix_and_text = md.group('text')
+                text = prefix_and_text
+                text_i = 0
+                continue
+            md = RX_DOUBLE_BRACKET.search(text)
+            if md:
+                if prefix:
+                    tokens.append(prefix)
+                    prefix = ''
+                tokens.append(md.group('token'))
+                prefix_and_text = md.group('text')
+                text = prefix_and_text
+                text_i = 0
+                continue
+            md = RX_COMMENT.search(text)
+            if md:
+                if prefix:
+                    tokens.append(prefix)
+                    prefix = ''
+                prefix_and_text = md.group('text')
+                text = prefix_and_text
+                text_i = 0
+                continue
+            md = RX_SINGLE_BRACKET.search(text)
+            if md:
+                if prefix:
+                    tokens.append(prefix)
+                    prefix = ''
+                tokens.append(md.group('token'))
+                prefix_and_text = md.group('text')
+                text = prefix_and_text
+                text_i = 0
+                continue
+        if text.startswith('##'):
+            if prefix:
+                tokens.append(prefix)
+            md = RX_COLOR_HEAD.search(text)
+            if md:
+                tokens.append(md.group('token'))
+                prefix_and_text = md.group('text')
+                text = prefix_and_text
+                text_i = 0
+                continue
+            tokens.append(text[0:2])
+            prefix_and_text = text[2:]
+            text = prefix_and_text
+            text_i = 0
+            continue
+        md = RX_LEAD_WHITESPACE.search(text)
+        if md:
+            if prefix:
+                tokens.append(prefix)
+                prefix = ''
+            tokens.append(md.group('token'))
+            prefix_and_text = md.group('text')
+            text = prefix_and_text
+            text_i = 0
+            continue
+        md = RX_DOUBLED_CHAR.search(text)
+        if md:
+            if prefix:
+                tokens.append(prefix)
+                prefix = ''
+            tokens.append(text[0:2])
+            prefix_and_text = text[2:]
+            text = prefix_and_text
+            text_i = 0
+            continue
+        text_i += 1
+        prefix = prefix_and_text[0:text_i]
+        text = prefix_and_text[text_i:]
 
-    return [token for token in tokens if token]
+    if prefix:
+        tokens.append(prefix)
+
+    return tokens
 
 
 class PhraseParser(object):
