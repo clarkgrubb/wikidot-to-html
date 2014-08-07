@@ -53,6 +53,10 @@ RX_WHITESPACE = re.compile(r'(\s+)')
 RX_SPAN = re.compile(r'^\[\[span ([^\]]+)\]\]$')
 RX_SIZE = re.compile(r'^\[\[size ([^\]]+)\]\]$')
 RX_RGB = re.compile(r'^[a-fA-F0-9]{6}$')
+RX_PARSE_TRIPLE_BRACKET = re.compile(
+    r'^\[\[\[(?P<href>.*)\|(?P<name>.+)\]\]\]$')
+RX_PARSE_DOUBLE_BRACKET = re.compile(r'^\[\[#\s+(?P<anchor>.+)\]\]$')
+RX_PARSE_SINGLE_BRACKET = re.compile(r'^\[(?P<href>\S+)\s+(?P<name>.+)\]$')
 
 
 def analyze_line(line):
@@ -194,6 +198,17 @@ class Size(Node):
         Node.__init__(self, raw_tag, tag, 'span')
 
 
+class Link(Node):
+    def __init__(self, raw_tag, href, content):
+        Node.__init__(self, raw_tag, 'a href="{}"'.format(href), 'a')
+        self.content = content
+
+    def __str__(self):
+        return '<{}>{}</{}>'.format(self.open_tag,
+                                    self.content,
+                                    self.close_tag)
+
+
 class LineBreak(Node):
     def __init__(self):
         Node.__init__(self)
@@ -206,7 +221,7 @@ LINE_BREAK = LineBreak()
 
 
 RX_TRIPLE_BRACKET = re.compile(
-    r'(?P<token>^\[\[\[[^\]|]+|[^\]|]+\]\]\])(?P<text>.*)$')
+    r'(?P<token>^\[\[\[[^\]|]+\|[^\]|]+\]\]\])(?P<text>.*)$')
 RX_DOUBLE_BRACKET = re.compile(
     r'^(?P<token>\[\[[^\]]+\]\])(?P<text>.*)$')
 RX_SINGLE_BRACKET = re.compile(
@@ -435,14 +450,8 @@ class PhraseParser(object):
     def parse(self, tokens):
         self.tokens = tokens
         for i, token in enumerate(tokens):
-            if self.comment and token == '--]':
-                self.comment = False
-            elif self.comment:
-                pass
-            elif RX_WHITESPACE.match(token):
+            if RX_WHITESPACE.match(token):
                 self.add_text(' ')
-            elif token == '[!--':
-                self.comment = True
             elif token.startswith('[[span'):
                 md = RX_SPAN.search(token)
                 if md:
@@ -469,6 +478,25 @@ class PhraseParser(object):
                 if self.size:
                     nd = self.remove_node(Size)
                     nd.set_closure(CLOSED_NODE)
+                else:
+                    self.add_text(token)
+            elif token.startswith('[[['):
+                md = RX_PARSE_TRIPLE_BRACKET.search(token)
+                if md:
+                    self.add_text(
+                        str(Link(token,
+                                 '/' + md.group('href'),
+                                 md.group('name'))))
+                else:
+                    self.add_text(token)
+            elif token.startswith('[['):
+                # FIXME
+                pass
+            elif token.startswith('['):
+                md = RX_PARSE_SINGLE_BRACKET.search(token)
+                if md:
+                    self.add_text(
+                        str(Link(token, md.group('href'), md.group('name'))))
                 else:
                     self.add_text(token)
             elif token == '##':
