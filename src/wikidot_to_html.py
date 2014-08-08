@@ -20,7 +20,6 @@ BLOCK_TYPE_H4 = 'h4'
 BLOCK_TYPE_H5 = 'h5'
 BLOCK_TYPE_H6 = 'h6'
 BLOCK_TYPE_HR = 'hr'
-
 BLOCK_TYPE_HN = '_hn'
 BLOCK_TYPE_EMPTY = '_empty'
 
@@ -57,6 +56,26 @@ RX_PARSE_TRIPLE_BRACKET = re.compile(
     r'^\[\[\[(?P<href>.*)\|(?P<name>.+)\]\]\]$')
 RX_PARSE_DOUBLE_BRACKET = re.compile(r'^\[\[#\s+(?P<anchor>.+)\]\]$')
 RX_PARSE_SINGLE_BRACKET = re.compile(r'^\[(?P<href>\S+)\s+(?P<name>.+)\]$')
+RX_TRIPLE_BRACKET = re.compile(
+    r'(?P<token>^\[\[\[[^\]|]+\|[^\]|]+\]\]\])(?P<text>.*)$')
+RX_DOUBLE_BRACKET = re.compile(
+    r'^(?P<token>\[\[[^\]]+\]\])(?P<text>.*)$')
+RX_SINGLE_BRACKET = re.compile(
+    r'^(?P<token>\[[^\]]+\])(?P<text>.*)$')
+RX_DOUBLED_CHAR = re.compile(r'^(//|\*\*|\{\{|\}\}|--|__|,,|\^\^|@@|@<|>@)')
+RX_COMMENT = re.compile(r'^(\[!--.*?--\])(?P<text>.*)$')
+RX_COLOR_HEAD = re.compile(r'^(?P<token>##[a-zA-Z0-9 ]+\|)(?P<text>.*)$')
+RX_LEAD_WHITESPACE = re.compile(r'^(?P<token>\s+)(?P<text>.*)$')
+RX_URL = re.compile(
+    r'^(?P<token>https?://[a-zA-Z0-9-._~:/#&?=+,;]*[a-zA-Z0-9-_~/#&?=+])'
+    r'(?P<text>.*)$')
+RX_IMAGE = re.compile(r'^\[\[image\s+(?P<src>\S+)\s*(?P<attrs>.*)\]\]$')
+RX_IMAGE_ATTR = re.compile(
+    r'^\s*(?P<attr>[^ =]+)'
+    r'\s*=\s*'
+    r'"(?P<value>[^"]*)"'
+    r'\s*(?P<rest>.*)$')
+RX_SPACE = re.compile(r' ')
 
 
 def analyze_line(line):
@@ -198,9 +217,43 @@ class Size(Node):
         Node.__init__(self, raw_tag, tag, 'span')
 
 
-class Link(Node):
+class EscapeLiteral(Node):
+    def __init__(self, raw_tag, tag):
+        Node.__init__(self, raw_tag, tag, 'span')
+
+    def __str__(self):
+        s = ''.join([str(child) for child in self.children])
+        s = RX_SPACE.sub('&#32;', s)
+        return '<{}>{}</{}>'.format(self.open_tag,
+                                    s,
+                                    self.close_tag)
+
+
+class NoEscapeLiteral(Node):
+    def __init__(self, raw_tag, tag):
+        Node.__init__(self, raw_tag, tag, 'span')
+
+    def __str__(self):
+        s = ''.join([str(child) for child in self.children])
+        s = RX_SPACE.sub('&#32;', s)
+        return '<{}>{}</{}>'.format(self.open_tag,
+                                    s,
+                                    self.close_tag)
+
+
+class Text(object):
+    def __init__(self, raw_tag='', open_tag='', close_tag=None):
+        self.raw_tag = raw_tag
+        self.open_tag = open_tag
+        self.close_tag = open_tag if close_tag is None else close_tag
+
+    def __str__(self):
+        return self.raw_tag
+
+
+class Link(Text):
     def __init__(self, raw_tag, href, content):
-        Node.__init__(self, raw_tag, 'a href="{}"'.format(href), 'a')
+        Text.__init__(self, raw_tag, 'a href="{}"'.format(href), 'a')
         self.content = content
 
     def __str__(self):
@@ -209,12 +262,40 @@ class Link(Node):
                                     self.close_tag)
 
 
-class Anchor(Node):
+class Anchor(Text):
     def __init__(self, raw_tag, name):
-        Node.__init__(self, raw_tag, 'a name="{}"'.format(name), 'a')
+        Text.__init__(self, raw_tag, 'a name="{}"'.format(name), 'a')
 
     def __str__(self):
         return '<{}></{}>'.format(self.open_tag, self.close_tag)
+
+
+class Image(Text):
+    ATTRS = ['title', 'width', 'height', 'style', 'class', 'size']
+
+    def __init__(self, raw_tag, src, attrs):
+        Text.__init__(self,
+                      raw_tag,
+                      'img')
+        self.src = src
+        self.attrs = attrs
+
+    def __str__(self):
+        s = '<img src="{}"'.format(self.src)
+        for attr in Image.ATTRS:
+            value = self.attrs.get(attr, None)
+            if value:
+                s += ' {}="{}"'.format(attr, value)
+        value = self.attrs.get('alt', self.src)
+        s += ' alt="{}"'.format(value)
+        value = self.attrs.get('class', 'image')
+        s += ' class="{}"'.format(value)
+        s += ' />'
+        link = self.attrs.get('link', None)
+        if link:
+            s = '<a href="{}">{}</a>'.format(link, s)
+
+        return s
 
 
 class LineBreak(Node):
@@ -228,25 +309,8 @@ class LineBreak(Node):
 LINE_BREAK = LineBreak()
 
 
-RX_TRIPLE_BRACKET = re.compile(
-    r'(?P<token>^\[\[\[[^\]|]+\|[^\]|]+\]\]\])(?P<text>.*)$')
-RX_DOUBLE_BRACKET = re.compile(
-    r'^(?P<token>\[\[[^\]]+\]\])(?P<text>.*)$')
-RX_SINGLE_BRACKET = re.compile(
-    r'^(?P<token>\[[^\]]+\])(?P<text>.*)$')
-RX_DOUBLED_CHAR = re.compile(r'^(//|\*\*|\{\{|\}\}|--|__|,,|\^\^|@@|@<|>@)')
-RX_COMMENT = re.compile(r'^(\[!--.*?--\])(?P<text>.*)$')
-RX_COLOR_HEAD = re.compile(r'^(?P<token>##[a-zA-Z0-9 ]+\|)(?P<text>.*)$')
-RX_LEAD_WHITESPACE = re.compile(r'^(?P<token>\s+)(?P<text>.*)$')
-RX_URL = re.compile(
-    r'^(?P<token>https?://[a-zA-Z0-9-._~:/#&?=+,;]*[a-zA-Z0-9-_~/#&?=+])'
-    r'(?P<text>.*)$')
-
-
 def lex(text):
-
     tokens = []
-
     prefix_and_text = text
     prefix = ''
     text_i = 0
@@ -344,12 +408,12 @@ def lex(text):
     return tokens
 
 
-class PhraseParser(object):
-
+class Parser(object):
     def __init__(self):
         self.italic = False
         self.bold = False
-        self.literal = False
+        self.escape_literal = False
+        self.no_escape_literal = False
         self.fixed_width = False
         self.strike_thru = False
         self.underline = False
@@ -381,6 +445,10 @@ class PhraseParser(object):
             self.subscript = value
         elif cls == Superscript:
             self.superscript = value
+        elif cls == EscapeLiteral:
+            self.escape_literal = value
+        elif cls == NoEscapeLiteral:
+            self.no_escape_literal = value
         elif cls == Span:
             if value:
                 self.span_depth += 1
@@ -466,10 +534,51 @@ class PhraseParser(object):
             else:
                 self.add_text(raw_tag)
 
+    def parse_image_attrs(self, attrs):
+        d = {}
+        while True:
+            md = RX_IMAGE_ATTR.search(attrs)
+            if md:
+                d[md.group('attr')] = md.group('value')
+                attrs = md.group('rest')
+            else:
+                break
+
+        return d
+
+    def parse_image(self, token):
+        md = RX_IMAGE.search(token)
+        if md:
+            src = md.group('src')
+            attrs = self.parse_image_attrs(md.group('attrs'))
+            self.add_text(Image(token, src, attrs))
+        else:
+            self.add_text(token)
+
     def parse(self, tokens):
         self.tokens = tokens
         for i, token in enumerate(tokens):
-            if RX_WHITESPACE.match(token):
+            if token == '@@' and self.escape_literal:
+                self.escape_literal = False
+                self.remove_node(EscapeLiteral)
+            elif token == '>@' and self.no_escape_literal:
+                self.no_escape_literal = False
+                self.remove_node(NoEscapeLiteral)
+            elif self.escape_literal:
+                self.add_text(cgi.escape(token))
+            elif self.no_escape_literal:
+                self.add_text(token)
+            elif token == '@@':
+                self.escape_literal = True
+                self.add_node(EscapeLiteral(
+                    '@@',
+                    'span style="white-space: pre-wrap;"'))
+            elif token == '@<':
+                self.no_escape_literal = True
+                self.add_node(NoEscapeLiteral(
+                    '@@',
+                    'span style="white-space: pre-wrap;"'))
+            elif RX_WHITESPACE.match(token):
                 self.add_text(' ')
             elif token.startswith('[[span'):
                 md = RX_SPAN.search(token)
@@ -499,26 +608,27 @@ class PhraseParser(object):
                     nd.set_closure(CLOSED_NODE)
                 else:
                     self.add_text(token)
+            elif token.startswith('[[image'):
+                self.parse_image(token)
             elif token.startswith('[[['):
                 md = RX_PARSE_TRIPLE_BRACKET.search(token)
                 if md:
-                    self.add_text(
-                        str(Link(token,
-                                 '/' + md.group('href'),
-                                 md.group('name'))))
+                    self.add_text(Link(token,
+                                       '/' + md.group('href'),
+                                       md.group('name')))
                 else:
                     self.add_text(token)
             elif token.startswith('[['):
                 md = RX_PARSE_DOUBLE_BRACKET.search(token)
                 if md:
-                    self.add_text(str(Anchor(token, md.group('anchor'))))
+                    self.add_text(Anchor(token, md.group('anchor')))
                 else:
                     self.add_text(token)
             elif token.startswith('['):
                 md = RX_PARSE_SINGLE_BRACKET.search(token)
                 if md:
                     self.add_text(
-                        str(Link(token, md.group('href'), md.group('name'))))
+                        Link(token, md.group('href'), md.group('name')))
                 else:
                     self.add_text(token)
             elif token == '##':
@@ -551,8 +661,6 @@ class PhraseParser(object):
                 self.handle_token(i, ',,', self.subscript, Subscript)
             elif token == '^^':
                 self.handle_token(i, '^^', self.superscript, Superscript)
-            elif token == '@@':
-                self.add_text('@@')
             elif token == '{{':
                 if not self.fixed_width:
                     if i < len(tokens) - 1 and \
@@ -570,7 +678,7 @@ class PhraseParser(object):
             elif token.startswith('http'):
                 md = RX_URL.search(token)
                 if md:
-                    self.add_text(str(Link(token, token, token)))
+                    self.add_text(Link(token, token, token))
                 else:
                     self.add_text(cgi.escape(token))
             else:
@@ -580,7 +688,6 @@ class PhraseParser(object):
 
 
 class Block(object):
-
     def __init__(self, line, block_type=None, match=None):
         self.lines = [line]
         if block_type:
@@ -618,14 +725,13 @@ class Block(object):
         output_stream.write('</{}>\n'.format(self.tag))
 
     def close(self, output_stream):
-        parser = PhraseParser()
+        parser = Parser()
         self.write_open_tag(output_stream)
         self.write_content(parser, output_stream)
         self.write_close_tag(output_stream)
 
 
 class Header(Block):
-
     next_toc_number = 0
 
     def __init__(self, line, match):
@@ -651,6 +757,11 @@ class HorizontalRule(Block):
 
     def close(self, output_stream):
         output_stream.write('<hr />\n')
+
+
+class Table(Block):
+    def __init__(self, line, match):
+        Block.__init__(self, line, BLOCK_TYPE_TABLE, match)
 
 
 class List(Block):
@@ -697,9 +808,8 @@ class List(Block):
         output_stream.write(str(node))
 
     def close(self, output_stream):
-        parser = PhraseParser()
+        parser = Parser()
         node_tag_indent = []
-
         triple = None
         for match in self.matches:
             if not triple:
@@ -742,7 +852,6 @@ class Empty(Block):
 
 
 class Paragraph(Block):
-
     def __init__(self, line, match):
         Block.__init__(self, line, BLOCK_TYPE_P, match)
 
@@ -752,15 +861,25 @@ class Paragraph(Block):
             if i < len(self.matches) - 1:
                 parser.add_text(LINE_BREAK)
 
-        return str(parser.top_node)
+        return parser.top_node
 
     def close(self, output_stream):
-        parser = PhraseParser()
-        content = self.get_content(parser)
+        parser = Parser()
+        top_node = self.get_content(parser)
+        content = str(top_node)
+        suppress_tags = False
+        if len(top_node.children) == 1:
+            child_node = top_node.children[0]
+            if type(child_node) == Image:
+                suppress_tags = True
         if content:
-            self.write_open_tag(output_stream)
+            if not suppress_tags:
+                self.write_open_tag(output_stream)
             output_stream.write(content)
-            self.write_close_tag(output_stream)
+            if not suppress_tags:
+                self.write_close_tag(output_stream)
+            else:
+                output_stream.write('\n')
 
 
 def block_factory(line, block_type=None, match=None):
@@ -776,6 +895,8 @@ def block_factory(line, block_type=None, match=None):
         return Paragraph(line, match)
     elif block_type == BLOCK_TYPE_HN:
         return Header(line, match)
+    elif block_type == BLOCK_TYPE_TABLE:
+        return Table(line, match)
     else:
         return Block(line, block_type, match)
 
