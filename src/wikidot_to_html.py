@@ -238,6 +238,9 @@ RX_DOUBLED_CHAR = re.compile(r'^(//|\*\*|\{\{|\}\}|--|__|,,|\^\^|@@|@<|>@)')
 RX_COMMENT = re.compile(r'^(\[!--.*?--\])(?P<text>.*)$')
 RX_COLOR_HEAD = re.compile(r'^(?P<token>##[a-zA-Z0-9 ]+\|)(?P<text>.*)$')
 RX_LEAD_WHITESPACE = re.compile(r'^(?P<token>\s+)(?P<text>.*)$')
+RX_URL = re.compile(
+    r'^(?P<token>https?://[a-zA-Z0-9-._~:/#&?=+,;]*[a-zA-Z0-9-_~/#&?=+])'
+    r'(?P<text>.*)$')
 
 
 def lex(text):
@@ -323,6 +326,14 @@ def lex(text):
             text = prefix_and_text
             text_i = 0
             continue
+        if text.startswith('http'):
+            md = RX_URL.search(text)
+            if md:
+                tokens.append(md.group('token'))
+                prefix_and_text = md.group('text')
+                text = prefix_and_text
+                text_i = 0
+                continue
         text_i += 1
         prefix = prefix_and_text[0:text_i]
         text = prefix_and_text[text_i:]
@@ -556,6 +567,12 @@ class PhraseParser(object):
                         nd.set_closure(CLOSED_NODE)
                     else:
                         self.add_text('}}')
+            elif token.startswith('http'):
+                md = RX_URL.search(token)
+                if md:
+                    self.add_text(str(Link(token, token, token)))
+                else:
+                    self.add_text(cgi.escape(token))
             else:
                 self.add_text(cgi.escape(token))
 

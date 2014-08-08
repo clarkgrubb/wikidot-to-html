@@ -161,11 +161,11 @@ test: test.math test.phrase test.table test.whitespace
 
 .PHONY: test.passing
 test.passing: test.blocks test.comment test.font test.headers
-test.passing: test.html-entities
+test.passing: test.html-entities test.links
 test.passing: test.lists test.lists1 test.lists2 test.phrase test.whitespace
 
 .PHONY: test.failing
-test.failing: test.block-quote test.image test.links
+test.failing: test.block-quote test.image
 test.failing: test.literal test.math test.span test.table
 
 .PHONY: all
