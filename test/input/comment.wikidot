@@ -6,6 +6,8 @@ One [!-- foo bar baz --]two three four.
 
 [!-- wumpus wombat --]
 
+[!-- [!-- nested --] --]
+
 finis.
 
 [!--

@@ -32,6 +32,14 @@ test.code: | output
 	> output/code.html
 	diff test/expected.output/code.html output/code.html
 
+.PHONY: test.collapsible-block
+test.collapsible-block: | output
+	@echo TEST: input/collapsible-block.wikidot
+	./src/wikidot_to_html.py \
+	< test/input/collapsible-block.wikidot \
+	> output/collapsible-block.html
+	diff test/expected.output/collapsible-block.html output/collapsible-block.html
+
 .PHONY: test.comment
 test.comment: | output
 	@echo TEST: input/comment.wikidot
@@ -208,13 +216,14 @@ test: test.html-entities test.image test.links test.lists test.literal
 test: test.math test.phrase test.table test.whitespace
 
 .PHONY: test.passing
-test.passing: test.blocks test.comment test.font test.headers
+test.passing: test.blocks test.font test.headers
 test.passing: test.html-entities test.image test.links test.literal
 test.passing: test.lists test.lists1 test.lists2 test.phrase test.table
 test.passing: test.whitespace
 
 .PHONY: test.failing
-test.failing: test.block-quote test.code test.math test.non-ascii
+test.failing: test.block-quote test.code test.collapsible-block test.math
+test.failing: test.comment test.non-ascii
 test.failing: test.span test.list3 test.definition-lists
 test.failing: test.table2 test.toc
 

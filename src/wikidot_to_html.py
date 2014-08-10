@@ -782,6 +782,21 @@ class Table(Block):
         self.colspan = 1
         self.text_align = None
         self.cell_content = ''
+        self.parser = None
+
+    def start_cell(self):
+        self.parser = Parser()
+
+    def add_cell_content(self, content):
+        self.parser.parse(lex(content))
+
+    def add_line_break(self):
+        self.parser.add_text(LINE_BREAK)
+
+    def end_cell(self, output_stream):
+        output_stream.write('<{}>{}</{}>\n'.format(self.open_cell_tag(),
+                                                   str(self.parser.top_node),
+                                                   self.cell_type))
 
     def analyze_cell(self, cell):
         md = RX_TAGGED_CELL.search(cell)
@@ -806,10 +821,10 @@ class Table(Block):
         else:
             self.text_align = ''
 
-    def open_cell_tag(self, colspan):
+    def open_cell_tag(self):
         components = [self.cell_type]
-        if colspan > 1:
-            components.append('colspan="{}"'.format(colspan))
+        if self.colspan > 1:
+            components.append('colspan="{}"'.format(self.colspan))
         if self.text_align:
             components.append(
                 'style="text-align: {};"'.format(self.text_align))
@@ -817,24 +832,25 @@ class Table(Block):
         return ' '.join(components)
 
     def print_middle_of_cell(self, output_stream, cell):
-        output_stream.write('{}<br />\n'.format(cell))
+        self.add_cell_content(cell)
+        self.add_line_break()
 
     def print_start_of_cell(self, output_stream, cell):
         self.analyze_cell(cell)
-        output_stream.write('<{}>{}<br />\n'.format(
-            self.open_cell_tag(self.colspan),
-            self.cell_content))
+        self.start_cell()
+        self.add_cell_content(self.cell_content)
+        self.add_line_break()
         self.colspan = 1
 
     def print_end_of_cell(self, output_stream, cell):
-        output_stream.write('{}</{}>\n'.format(cell, self.cell_type))
+        self.add_cell_content(cell)
+        self.end_cell(output_stream)
 
     def print_full_cell(self, output_stream, cell):
         self.analyze_cell(cell)
-        output_stream.write('<{}>{}</{}>\n'.format(
-                self.open_cell_tag(self.colspan),
-                self.cell_content,
-                self.cell_type))
+        self.start_cell()
+        self.add_cell_content(self.cell_content)
+        self.end_cell(output_stream)
         self.colspan = 1
 
     def print_cells(self, output_stream, first_cell, cells, last_cell,
