@@ -62,7 +62,8 @@ RX_DOUBLE_BRACKET = re.compile(
     r'^(?P<token>\[\[[^\]]+\]\])(?P<text>.*)$')
 RX_SINGLE_BRACKET = re.compile(
     r'^(?P<token>\[[^\]]+\])(?P<text>.*)$')
-RX_DOUBLED_CHAR = re.compile(r'^(//|\*\*|\{\{|\}\}|--|__|,,|\^\^|@@|@<|>@)')
+RX_DOUBLED_CHAR = re.compile(
+    r'^(//|\*\*|\{\{|\}\}|--|__|,,|\^\^|@@|@<|>@|\|\|)')
 RX_COMMENT = re.compile(r'^(\[!--.*?--\])(?P<text>.*)$')
 RX_COLOR_HEAD = re.compile(r'^(?P<token>##[a-zA-Z0-9 ]+\|)(?P<text>.*)$')
 RX_LEAD_WHITESPACE = re.compile(r'^(?P<token>\s+)(?P<text>.*)$')
@@ -76,6 +77,10 @@ RX_IMAGE_ATTR = re.compile(
     r'"(?P<value>[^"]*)"'
     r'\s*(?P<rest>.*)$')
 RX_SPACE = re.compile(r' ')
+RX_FULL_ROW = re.compile(r'^\|\|(?P<row>.*)\|\|$')
+RX_START_ROW = re.compile(r'^\|\|(?P<row>.*)$')
+RX_END_ROW = re.compile(r'^(?P<row>.*)\|\|$')
+RX_TAGGED_CELL = re.compile(r'^(?P<tag>~|<|=|>)\s+(?P<content>.*)$')
 
 
 def analyze_line(line):
@@ -762,6 +767,130 @@ class HorizontalRule(Block):
 class Table(Block):
     def __init__(self, line, match):
         Block.__init__(self, line, BLOCK_TYPE_TABLE, match)
+        self.cell_type = 'td'
+        self.colspan = 1
+        self.text_align = None
+        self.cell_content = ''
+
+    def analyze_cell(self, cell):
+        md = RX_TAGGED_CELL.search(cell)
+        if md:
+            tag = md.group('tag')
+            self.cell_content = md.group('content')
+        else:
+            tag = ''
+            self.cell_content = cell
+
+        if tag == '~':
+            self.cell_type = 'th'
+        else:
+            self.cell_type = 'td'
+
+        if tag == '<':
+            self.text_align = 'left'
+        elif tag == '=':
+            self.text_align = 'center'
+        elif tag == '>':
+            self.text_align = 'right'
+        else:
+            self.text_align = ''
+
+    def open_cell_tag(self, colspan):
+        components = [self.cell_type]
+        if colspan > 1:
+            components.append('colspan="{}"'.format(colspan))
+        if self.text_align:
+            components.append(
+                'style="text-align: {};"'.format(self.text_align))
+
+        return ' '.join(components)
+
+    def print_middle_of_cell(self, output_stream, cell):
+        output_stream.write('{}<br />\n'.format(cell))
+
+    def print_start_of_cell(self, output_stream, cell):
+        self.analyze_cell(cell)
+        output_stream.write('<{}>{}<br />\n'.format(
+            self.open_cell_tag(self.colspan),
+            self.cell_content))
+        self.colspan = 1
+
+    def print_end_of_cell(self, output_stream, cell):
+        output_stream.write('{}</{}>\n'.format(cell, self.cell_type))
+
+    def print_full_cell(self, output_stream, cell):
+        self.analyze_cell(cell)
+        output_stream.write('<{}>{}</{}>\n'.format(
+                self.open_cell_tag(self.colspan),
+                self.cell_content,
+                self.cell_type))
+        self.colspan = 1
+
+    def print_cells(self, output_stream, first_cell, cells, last_cell,
+                    lone_cell=None):
+        self.colspan = 1
+        if lone_cell:
+            self.print_middle_of_cell(output_stream, lone_cell)
+        if first_cell is not None:
+            self.print_end_of_cell(output_stream, first_cell)
+        for cell in cells:
+            if len(cell) == 0:
+                self.colspan += 1
+            else:
+                self.print_full_cell(output_stream, cell)
+        if last_cell is not None:
+            self.print_start_of_cell(output_stream, last_cell)
+
+    def close(self, output_stream):
+        parser = Parser()
+        output_stream.write('<table class="wiki-content-table">\n')
+        inside_cell = False
+        for match in self.matches:
+            content = match.group('content')
+            md = RX_FULL_ROW.search(content)
+            if md:
+                if inside_cell:
+                    raise Exception('unterminated cell')
+                row = md.group('row')
+                cells = row.split('||')
+                output_stream.write('<tr>\n')
+                self.print_cells(output_stream, None, cells, None)
+                output_stream.write('</tr>\n')
+                inside_cell = False
+                continue
+            md = RX_START_ROW.search(content)
+            if md:
+                if inside_cell:
+                    raise Exception('unterminated cell')
+                row = md.group('row')
+                cells = row.split('||')
+                last_cell = cells.pop()
+                output_stream.write('<tr>\n')
+                self.print_cells(output_stream, None, cells, last_cell)
+                inside_cell = True
+                continue
+            md = RX_END_ROW.search(content)
+            if md:
+                if not inside_cell:
+                    raise Exception('not inside cell')
+                row = md.group('row')
+                cells = row.split('||')
+                first_cell = cells.pop(0)
+                self.print_cells(output_stream, first_cell, cells, None)
+                output_stream.write('</tr>\n')
+                inside_cell = False
+                continue
+            row = content
+            cells = row.split('||')
+            if len(cells) == 1:
+                lone_cell = cells.pop()
+                self.print_cells(output_stream, None, None, None, lone_cell)
+            else:
+                first_cell = cells.pop(0)
+                last_cell = cells.pop()
+                self.print_cells(output_stream, first_cell, cells, last_cell)
+            inside_cell = True
+        output_stream.write('</table>\n')
 
 
 class List(Block):
