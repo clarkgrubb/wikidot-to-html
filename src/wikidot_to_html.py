@@ -81,6 +81,7 @@ RX_FULL_ROW = re.compile(r'^\|\|(?P<row>.*)\|\|$')
 RX_START_ROW = re.compile(r'^\|\|(?P<row>.*)$')
 RX_END_ROW = re.compile(r'^(?P<row>.*)\|\|$')
 RX_TAGGED_CELL = re.compile(r'^(?P<tag>~|<|=|>)\s+(?P<content>.*)$')
+RX_EMPTY_PARAGRAPH = re.compile(r'^(<br />|\s)*$', re.M)
 
 
 def analyze_line(line):
@@ -321,6 +322,12 @@ def lex(text):
     text_i = 0
     while text:
         if text.startswith('['):
+            if text.startswith('[!--'):
+                tokens.append('[!--')
+                prefix_and_text = text[4:]
+                text = prefix_and_text
+                text_i = 0
+                continue
             md = RX_TRIPLE_BRACKET.search(text)
             if md:
                 if prefix:
@@ -337,15 +344,6 @@ def lex(text):
                     tokens.append(prefix)
                     prefix = ''
                 tokens.append(md.group('token'))
-                prefix_and_text = md.group('text')
-                text = prefix_and_text
-                text_i = 0
-                continue
-            md = RX_COMMENT.search(text)
-            if md:
-                if prefix:
-                    tokens.append(prefix)
-                    prefix = ''
                 prefix_and_text = md.group('text')
                 text = prefix_and_text
                 text_i = 0
@@ -382,6 +380,12 @@ def lex(text):
                 prefix = ''
             tokens.append(md.group('token'))
             prefix_and_text = md.group('text')
+            text = prefix_and_text
+            text_i = 0
+            continue
+        if text.startswith('--]'):
+            tokens.append('--]')
+            prefix_and_text = text[3:]
             text = prefix_and_text
             text_i = 0
             continue
@@ -563,7 +567,14 @@ class Parser(object):
     def parse(self, tokens):
         self.tokens = tokens
         for i, token in enumerate(tokens):
-            if token == '@@' and self.escape_literal:
+            if self.comment:
+                if token != '--]':
+                    pass
+                elif token == '--]':
+                    self.comment = False
+            elif token == '[!--':
+                self.comment = True
+            elif token == '@@' and self.escape_literal:
                 self.escape_literal = False
                 self.remove_node(EscapeLiteral)
             elif token == '>@' and self.no_escape_literal:
@@ -1001,7 +1012,7 @@ class Paragraph(Block):
             child_node = top_node.children[0]
             if type(child_node) == Image:
                 suppress_tags = True
-        if content:
+        if not RX_EMPTY_PARAGRAPH.search(content):
             if not suppress_tags:
                 self.write_open_tag(output_stream)
             output_stream.write(content)

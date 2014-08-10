@@ -208,13 +208,13 @@ test: test.html-entities test.image test.links test.lists test.literal
 test: test.math test.phrase test.table test.whitespace
 
 .PHONY: test.passing
-test.passing: test.blocks test.font test.headers
+test.passing: test.blocks test.comment test.font test.headers
 test.passing: test.html-entities test.image test.links test.literal
 test.passing: test.lists test.lists1 test.lists2 test.phrase test.table
 test.passing: test.whitespace
 
 .PHONY: test.failing
-test.failing: test.block-quote test.code test.comment test.math test.non-ascii
+test.failing: test.block-quote test.code test.math test.non-ascii
 test.failing: test.span test.list3 test.definition-lists
 test.failing: test.table2 test.toc
 
