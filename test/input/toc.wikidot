@@ -1,0 +1,8 @@
+[[toc]]
+
+[!-- also [[f>toc]] and [[f<toc]] --]
+
++ This section appears in the TOC
++* And this one does not
+++* Neither does this one
+++ this does

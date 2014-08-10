@@ -1,0 +1,8 @@
+[[ul]]
+ [[li class="item1" data-toggle="data1"]]Item1[[/li]]
+ [[li style="color: red;"]]Item 2[[/li]]
+  [[ol]]
+    [[li]]Item 2.1[[/li]]
+    [[li]]Item 2.2[[/li]]
+  [[/ol]]
+[[/ul]]

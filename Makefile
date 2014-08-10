@@ -24,6 +24,14 @@ test.block-quote: | output
 	> output/block-quote.html
 	diff test/expected.output/block-quote.html output/block-quote.html
 
+.PHONY: test.code
+test.code: | output
+	@echo TEST: input/code.wikidot
+	./src/wikidot_to_html.py \
+	< test/input/code.wikidot \
+	> output/code.html
+	diff test/expected.output/code.html output/code.html
+
 .PHONY: test.comment
 test.comment: | output
 	@echo TEST: input/comment.wikidot
@@ -31,6 +39,14 @@ test.comment: | output
 	< test/input/comment.wikidot \
 	> output/comment.html
 	diff test/expected.output/comment.html output/comment.html
+
+.PHONY: test.definition-lists
+test.definition-lists: | output
+	@echo TEST: input/definition-lists.wikidot
+	./src/wikidot_to_html.py \
+	< test/input/definition-lists.wikidot \
+	> output/definition-lists.html
+	diff test/expected.output/definition-lists.html output/definition-lists.html
 
 .PHONY: test.div
 test.div: | output
@@ -104,6 +120,14 @@ test.lists2: | output
 	> output/lists2.html
 	diff test/expected.output/lists2.html output/lists2.html
 
+.PHONY: test.lists3
+test.lists3: | output
+	@echo TEST: input/lists3.wikidot
+	./src/wikidot_to_html.py \
+	< test/input/lists3.wikidot \
+	> output/lists3.html
+	diff test/expected.output/lists3.html output/lists3.html
+
 .PHONY: test.literal
 test.literal: | output
 	@echo TEST: input/literal.wikidot
@@ -119,6 +143,14 @@ test.math: | output
 	< test/input/math.wikidot \
 	> output/math.html
 	diff test/expected.output/math.html output/math.html
+
+.PHONY: test.non-ascii
+test.non-ascii: | output
+	@echo TEST: input/non-ascii.wikidot
+	./src/wikidot_to_html.py \
+	< test/input/non-ascii.wikidot \
+	> output/non-ascii.html
+	diff test/expected.output/non-ascii.html output/non-ascii.html
 
 .PHONY: test.phrase
 test.phrase: | output
@@ -144,6 +176,22 @@ test.table: | output
 	> output/table.html
 	diff test/expected.output/table.html output/table.html
 
+.PHONY: test.table2
+test.table2: | output
+	@echo TEST: input/table2.wikidot
+	./src/wikidot_to_html.py \
+	< test/input/table2.wikidot \
+	> output/table2.html
+	diff test/expected.output/table2.html output/table2.html
+
+.PHONY: test.toc
+test.toc: | output
+	@echo TEST: input/toc.wikidot
+	./src/wikidot_to_html.py \
+	< test/input/toc.wikidot \
+	> output/toc.html
+	diff test/expected.output/toc.html output/toc.html
+
 .PHONY: test.whitespace
 test.whitespace: | output
 	@echo TEST: input/whitespace.wikidot
@@ -160,13 +208,15 @@ test: test.html-entities test.image test.links test.lists test.literal
 test: test.math test.phrase test.table test.whitespace
 
 .PHONY: test.passing
-test.passing: test.blocks test.comment test.font test.headers
+test.passing: test.blocks test.font test.headers
 test.passing: test.html-entities test.image test.links test.literal
 test.passing: test.lists test.lists1 test.lists2 test.phrase test.table
 test.passing: test.whitespace
 
 .PHONY: test.failing
-test.failing: test.block-quote test.math test.span
+test.failing: test.block-quote test.code test.comment test.math test.non-ascii
+test.failing: test.span test.list3 test.definition-lists
+test.failing: test.table2 test.toc
 
 .PHONY: all
 all:

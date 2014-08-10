@@ -7,3 +7,7 @@ One [!-- foo bar baz --]two three four.
 [!-- wumpus wombat --]
 
 finis.
+
+[!--
+This text will not be rendered.
+--]
