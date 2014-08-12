@@ -168,6 +168,22 @@ test.phrase: | output
 	> output/phrase.html
 	diff test/expected.output/phrase.html output/phrase.html
 
+.PHONY: test.smart-quotes
+test.smart-quotes: | output
+	@echo TEST: input/smart-quotes.wikidot
+	./src/wikidot_to_html.py \
+	< test/input/smart-quotes.wikidot \
+	> output/smart-quotes.html
+	diff test/expected.output/smart-quotes.html output/smart-quotes.html
+
+.PHONY: test.smart-quotes2
+test.smart-quotes2: | output
+	@echo TEST: input/smart-quotes2.wikidot
+	./src/wikidot_to_html.py \
+	< test/input/smart-quotes2.wikidot \
+	> output/smart-quotes2.html
+	diff test/expected.output/smart-quotes2.html output/smart-quotes2.html
+
 .PHONY: test.span
 test.span: | output
 	@echo TEST: input/span.wikidot
@@ -208,7 +224,6 @@ test.whitespace: | output
 	> output/whitespace.html
 	diff test/expected.output/whitespace.html output/whitespace.html
 
-
 # no test.div
 .PHONY: test
 test: test.blocks test.block-quote test.comment test.font test.headers
@@ -222,9 +237,12 @@ test.passing: test.lists test.lists1 test.lists2 test.phrase test.table
 test.passing: test.whitespace
 
 .PHONY: test.failing
-test.failing: test.block-quote test.code test.collapsible-block test.math
-test.failing: test.comment test.non-ascii
-test.failing: test.span test.list3 test.definition-lists
+test.failing: test.block-quote test.code test.collapsible-block
+test.failing: test.comment test.definition-lists test.div
+test.failing: test.list3
+test.failing: test.math test.non-ascii
+test.failing: test.smart-quotes test.smart-quotes2
+test.failing: test.span
 test.failing: test.table2 test.toc
 
 .PHONY: all
