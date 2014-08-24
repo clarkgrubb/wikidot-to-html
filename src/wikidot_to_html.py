@@ -831,11 +831,11 @@ class Table(Block):
 
         return ' '.join(components)
 
-    def print_middle_of_cell(self, output_stream, cell):
+    def print_middle_of_cell(self, cell):
         self.add_cell_content(cell)
         self.add_line_break()
 
-    def print_start_of_cell(self, output_stream, cell):
+    def print_start_of_cell(self, cell):
         self.analyze_cell(cell)
         self.start_cell()
         self.add_cell_content(self.cell_content)
@@ -857,7 +857,7 @@ class Table(Block):
                     lone_cell=None):
         self.colspan = 1
         if lone_cell:
-            self.print_middle_of_cell(output_stream, lone_cell)
+            self.print_middle_of_cell(lone_cell)
         if first_cell is not None:
             self.print_end_of_cell(output_stream, first_cell)
         for cell in cells:
@@ -866,10 +866,9 @@ class Table(Block):
             else:
                 self.print_full_cell(output_stream, cell)
         if last_cell is not None:
-            self.print_start_of_cell(output_stream, last_cell)
+            self.print_start_of_cell(last_cell)
 
     def close(self, output_stream):
-        parser = Parser()
         output_stream.write('<table class="wiki-content-table">\n')
         inside_cell = False
         for match in self.matches:
