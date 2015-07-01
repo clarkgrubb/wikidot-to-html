@@ -208,14 +208,6 @@ test.table2: | output
 	> output/table2.html
 	diff test/expected.output/table2.html output/table2.html
 
-.PHONY: test.toc
-test.toc: | output
-	@echo TEST: input/toc.wikidot
-	./src/wikidot_to_html.py \
-	< test/input/toc.wikidot \
-	> output/toc.html
-	diff test/expected.output/toc.html output/toc.html
-
 .PHONY: test.whitespace
 test.whitespace: | output
 	@echo TEST: input/whitespace.wikidot
@@ -243,7 +235,7 @@ test.failing: test.list3
 test.failing: test.math test.non-ascii
 test.failing: test.smart-quotes test.smart-quotes2
 test.failing: test.span
-test.failing: test.table2 test.toc
+test.failing: test.table2
 
 .PHONY: all
 all:
