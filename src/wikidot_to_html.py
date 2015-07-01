@@ -508,7 +508,7 @@ class Parser(object):
             nd = self.nodes.pop()
             removed_nodes.append(nd)
             self.remove_flag(type(nd))
-            if type(nd) == cls_to_remove:
+            if isinstance(nd, cls_to_remove):
                 break
 
         return removed_nodes
@@ -1024,7 +1024,7 @@ class Paragraph(Block):
         suppress_tags = False
         if len(top_node.children) == 1:
             child_node = top_node.children[0]
-            if type(child_node) == Image:
+            if isinstance(child_node, Image):
                 suppress_tags = True
         if not RX_EMPTY_PARAGRAPH.search(content):
             if not suppress_tags:
