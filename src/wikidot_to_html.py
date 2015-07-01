@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import argparse
 import cgi
 import pprint
 import re
@@ -1115,7 +1114,4 @@ def wikidot_to_html(input_stream, output_stream):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    args = parser.parse_args()
-
     wikidot_to_html(sys.stdin, sys.stdout)
