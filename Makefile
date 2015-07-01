@@ -48,14 +48,6 @@ test.comment: | output
 	> output/comment.html
 	diff test/expected.output/comment.html output/comment.html
 
-.PHONY: test.definition-lists
-test.definition-lists: | output
-	@echo TEST: input/definition-lists.wikidot
-	./src/wikidot_to_html.py \
-	< test/input/definition-lists.wikidot \
-	> output/definition-lists.html
-	diff test/expected.output/definition-lists.html output/definition-lists.html
-
 .PHONY: test.div
 test.div: | output
 	@echo TEST: input/div.wikidot
@@ -230,7 +222,7 @@ test.passing: test.whitespace
 
 .PHONY: test.failing
 test.failing: test.block-quote test.code test.collapsible-block
-test.failing: test.comment test.definition-lists test.div
+test.failing: test.comment test.div
 test.failing: test.list3
 test.failing: test.math test.non-ascii
 test.failing: test.smart-quotes test.smart-quotes2
