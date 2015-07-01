@@ -202,9 +202,9 @@ test.whitespace: | output
 
 # no test.div
 .PHONY: test
-test: test.blocks test.block-quote test.comment test.font test.headers
+test: test.blocks test.font test.headers
 test: test.html-entities test.image test.links test.lists test.literal
-test: test.math test.phrase test.table test.whitespace
+test: test.phrase test.table test.whitespace
 
 .PHONY: test.passing
 test.passing: test.blocks test.font test.headers
