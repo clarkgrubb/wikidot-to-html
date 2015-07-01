@@ -200,17 +200,12 @@ test.whitespace: | output
 	> output/whitespace.html
 	diff test/expected.output/whitespace.html output/whitespace.html
 
-# no test.div
 .PHONY: test
 test: test.blocks test.font test.headers
-test: test.html-entities test.image test.links test.lists test.literal
+test: test.html-entities test.image test.links
+test: test.lists test.lists1 test.lists2
+test: test.literal
 test: test.phrase test.table test.whitespace
-
-.PHONY: test.passing
-test.passing: test.blocks test.font test.headers
-test.passing: test.html-entities test.image test.links test.literal
-test.passing: test.lists test.lists1 test.lists2 test.phrase test.table
-test.passing: test.whitespace
 
 .PHONY: test.failing
 test.failing: test.block-quote test.code
