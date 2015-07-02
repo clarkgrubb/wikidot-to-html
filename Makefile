@@ -32,6 +32,14 @@ test.code: | output
 	> output/code.html
 	diff test/expected.output/code.html output/code.html
 
+.PHONY: test.code2
+test.code2: | output
+	@echo TEST: input/code2.wikidot
+	./src/wikidot_to_html.py \
+	< test/input/code2.wikidot \
+	> output/code2.html
+	diff test/expected.output/code2.html output/code2.html
+
 .PHONY: test.comment
 test.comment: | output
 	@echo TEST: input/comment.wikidot
@@ -201,7 +209,7 @@ test.whitespace: | output
 	diff test/expected.output/whitespace.html output/whitespace.html
 
 .PHONY: test
-test: test.blocks test.font test.headers
+test: test.blocks test.code2 test.font test.headers
 test: test.html-entities test.image test.links
 test: test.lists test.lists1 test.lists2
 test: test.literal

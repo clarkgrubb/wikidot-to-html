@@ -13,6 +13,15 @@ output stream.
     <p>:
     <hr>: ----
     <table>: ||
+    <pre><code>: [[code type="..."]]
+    <div>: [[div id="..." class="..." style="..." data-...="..."]]
+
+    [[code]] blocks do not nest and cannot be inside blockquotes.
+    [[code]] start and end blocks must be first token on a line.
+
+    [[div]] blocks nest and can be inside blockquotes.
+    [[div]] start and end blocks must be first token on a line after
+          blockquote indicators.
 
   INLINE ELEMENTS:
     <em>: //
@@ -105,6 +114,8 @@ RX_OL = re.compile(
     r'^(?P<indent>\s*)(?P<raw_tag>\#)\s+(?P<content>\S.*?)(?P<br> _)?$')
 RX_BLOCKQUOTE = re.compile(
     r'^(?P<greater_than_signs>>+)\s*(?P<content>.*?)(?P<br> _)?$')
+RX_CODE = re.compile(
+    r'^(?P<indent>\s*)(?P<raw_tag>\[\[code\]\])(?P<content>.*?)(?P<br> _)?$')
 RX_TABLE = re.compile(
     r'^(?P<indent>\s*)(?P<content>\|\|.*?)(?P<br> _)?$')
 RX_HN = re.compile(
