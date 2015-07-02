@@ -1,4 +1,76 @@
 #!/usr/bin/env python
+"""The parser reads lines of input containing Wikidot-style markup
+from an input stream and writes the corresponding HTML to an
+output stream.
+
+## Markup
+
+  BLOCK ELEMENTS:
+    <blockquote>: >
+    <ul>: *
+    <ol>: #
+    <hn>: +
+    <p>:
+    <hr>: ----
+    <table>: ||
+
+  INLINE ELEMENTS:
+    <em>: //
+    <strong>: **
+    <tt>: {{ }}
+    <span style="text-decoration: line-through">: --
+    <span style="text-decoration: underline">: __
+    <sub>: ,,
+    <sup>: ^^
+    <span>: [[span]]
+    <font color="...">:
+    <font size="...">: [[size]]
+    <a href="...">: [#
+    <a name="...">: [[# ...]]
+    <br>: _
+    escape literal: @@
+    no escape literal: @< >@
+
+## Processing Lines and Creating Blocks
+
+Each line of input is associated with an HTML block element.  When a
+new HTML block element is encountered, the content of the old block
+element is processed and rendered as HTML.
+
+<blockquote> elements can nest and contain other <blockquote>
+elements.  Other <blockquote>, all block elements are represented by a
+subclass of the Block class.
+
+The Block.close() method is invoked to parse the content of a block
+element, if any, and write the HTML to the output stream.  To parse
+the content, a Parser object is created.
+
+Each Block object has two attributes representing its content: lines
+and matches.  The lines attribute is a list of raw lines with any
+markup at the front indicating the blockquotes (i.e. '>') removed.
+The matches is a list the same length as lines containing the regex
+match object (re.MatchObject) which analyzed the line.  These match
+objects contain the following named groups:
+
+  * indent
+  * raw_tag
+  * content
+  * br
+
+The function Block.write_content iterates over the matches, extracts
+what the regex labeled as 'content', calls lex() on it, passes the
+result to Parser.parse(), and then prints Parser.top_node.
+
+## Parsing Block Content
+
+The parser builds a tree of Node objects, keeping the root
+node in Parser.top_node.  The children of each node are in
+Node.children.  The children of a node are not always Node
+objects; they can be simple strings or Text objects.  Text
+objects do not have children.  Node objects and Text objects
+define __str__ methods so they can be rendered as HTML.
+
+"""
 
 import cgi
 import pprint
@@ -81,32 +153,6 @@ RX_START_ROW = re.compile(r'^\|\|(?P<row>.*)$')
 RX_END_ROW = re.compile(r'^(?P<row>.*)\|\|$')
 RX_TAGGED_CELL = re.compile(r'^(?P<tag>~|<|=|>)\s+(?P<content>.*)$')
 RX_EMPTY_PARAGRAPH = re.compile(r'^(<br />|\s)*$', re.M)
-
-
-def analyze_line(line):
-    md = RX_UL.search(line)
-    if md:
-        return BLOCK_TYPE_UL, md
-    md = RX_OL.search(line)
-    if md:
-        return BLOCK_TYPE_OL, md
-    md = RX_TABLE.search(line)
-    if md:
-        return BLOCK_TYPE_TABLE, md
-    md = RX_HN.search(line)
-    if md:
-        return BLOCK_TYPE_HN, md
-    md = RX_HR.search(line)
-    if md:
-        return BLOCK_TYPE_HR, md
-    md = RX_EMPTY.search(line)
-    if md:
-        return BLOCK_TYPE_EMPTY, md
-    md = RX_P.search(line)
-    if md:
-        return BLOCK_TYPE_P, md
-
-    raise Exception('unparseable line: {}'.format(line))
 
 
 class ClosureNode(object):
@@ -700,6 +746,32 @@ class Parser(object):
                 self.add_text(cgi.escape(token))
 
         return self.top_node
+
+
+def analyze_line(line):
+    md = RX_UL.search(line)
+    if md:
+        return BLOCK_TYPE_UL, md
+    md = RX_OL.search(line)
+    if md:
+        return BLOCK_TYPE_OL, md
+    md = RX_TABLE.search(line)
+    if md:
+        return BLOCK_TYPE_TABLE, md
+    md = RX_HN.search(line)
+    if md:
+        return BLOCK_TYPE_HN, md
+    md = RX_HR.search(line)
+    if md:
+        return BLOCK_TYPE_HR, md
+    md = RX_EMPTY.search(line)
+    if md:
+        return BLOCK_TYPE_EMPTY, md
+    md = RX_P.search(line)
+    if md:
+        return BLOCK_TYPE_P, md
+
+    raise Exception('unparseable line: {}'.format(line))
 
 
 class Block(object):
