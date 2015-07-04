@@ -141,7 +141,7 @@ RX_HN = re.compile(
     r'(?P<br> _)?$')
 RX_HR = re.compile(r'^(?P<indent>\s*)----(?P<content>)(?P<br> _)?$')
 RX_EMPTY = re.compile(r'^\s*(?P<br> _)?$')
-RX_P = re.compile(r'^(?P<content>.*?)(?P<br> _)?$')
+RX_P = re.compile(r'^\s*(?P<content>.*?)(?P<br> _)?$')
 RX_MARKERS = re.compile(r'(//|\*\*|\{\{|\}\}|@@|\[!--|--\]|--|__|,,|\^\^|'
                         r'\[\[span [^\]]+\]\]|\[\[/span\]\]|\[\[/size\]\]|'
                         r'\]\]|##)')
@@ -1331,6 +1331,9 @@ class BlockParser(object):
 
             block_type, match = self.block_type_and_match(line)
             if not block_type:
+                continue
+
+            if block_type == BLOCK_TYPE_EMPTY and self.bq_level > 0:
                 continue
 
             if not self.current_block:

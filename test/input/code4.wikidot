@@ -1,0 +1,12 @@
+This is code:
+
+[[code]]
+#include <stdio.h>
+
+int
+main(int argc, char** argv) {
+    printf("Hello, World!\n");
+}
+[[/code]]
+
+This is not code.
