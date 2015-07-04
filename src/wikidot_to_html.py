@@ -119,7 +119,6 @@ RX_SINGLE_BRACKET = re.compile(
     r'^(?P<token>\[[^\]]+\])(?P<text>.*)$')
 RX_DOUBLED_CHAR = re.compile(
     r'^(//|\*\*|\{\{|\}\}|--|__|,,|\^\^|@@|@<|>@|\|\|)')
-RX_COMMENT = re.compile(r'^(\[!--.*?--\])(?P<text>.*)$')
 RX_COLOR_HEAD = re.compile(r'^(?P<token>##[a-zA-Z0-9 ]+\|)(?P<text>.*)$')
 RX_LEAD_WHITESPACE = re.compile(r'^(?P<token>\s+)(?P<text>.*)$')
 RX_URL = re.compile(
