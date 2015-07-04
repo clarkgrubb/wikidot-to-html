@@ -44,46 +44,6 @@ output stream.
     <br>: _
     escape literal: @@
     no escape literal: @< >@
-
-## Processing Lines and Creating Blocks
-
-Each line of input is associated with an HTML block element.  When a
-new HTML block element is encountered, the content of the old block
-element is processed and rendered as HTML.
-
-<blockquote> elements can nest and contain other <blockquote>
-elements.  Other <blockquote>, all block elements are represented by a
-subclass of the Block class.
-
-The Block.close() method is invoked to parse the content of a block
-element, if any, and write the HTML to the output stream.  To parse
-the content, a InlineParser object is created.
-
-Each Block object has two attributes representing its content: lines
-and matches.  The lines attribute is a list of raw lines with any
-markup at the front indicating the blockquotes (i.e. '>') removed.
-The matches is a list the same length as lines containing the regex
-match object (re.MatchObject) which analyzed the line.  These match
-objects contain the following named groups:
-
-  * indent
-  * raw_tag
-  * content
-  * br
-
-The function Block.write_content iterates over the matches, extracts
-what the regex labeled as 'content', calls lex() on it, passes the
-result to InlineParser.parse(), and then prints InlineParser.top_node.
-
-## Parsing Block Content
-
-The parser builds a tree of Node objects, keeping the root
-node in InlineParser.top_node.  The children of each node are in
-Node.children.  The children of a node are not always Node
-objects; they can be simple strings or Text objects.  Text
-objects do not have children.  Node objects and Text objects
-define __str__ methods so they can be rendered as HTML.
-
 """
 
 import cgi
@@ -283,6 +243,12 @@ class Superscript(Node):
 class Span(Node):
     def __init__(self, raw_tag, tag):
         Node.__init__(self, raw_tag, tag, 'span')
+
+    def __str__(self):
+        return '{}{}{}'.format(
+            '<{}>'.format(self.open_tag),
+            ''.join([str(child) for child in self.children]).rstrip(),
+            '</span>')
 
 
 class Color(Node):

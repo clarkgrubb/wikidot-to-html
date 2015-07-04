@@ -21,10 +21,10 @@ test: test.blocks test.code test.code2 test.code3 test.code4
 test: test.div test.div2 test.font
 test: test.headers test.html-entities test.image test.links
 test: test.lists test.lists1 test.lists2 test.lists4
-test: test.literal test.p test.phrase test.table test.whitespace
+test: test.literal test.p test.phrase test.span
+test: test.table test.whitespace
 
 .PHONY: tests.failing
-tests.failing: test.span
 tests.failing: test.math
 tests.failing: test.table2
 
