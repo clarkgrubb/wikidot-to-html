@@ -1214,6 +1214,7 @@ class LineParser(object):
 
     def process_lines(self):
         for line in self.input_stream:
+            line = line.rstrip()
             line = self.adjust_blockquote_level(line)
 
             if self.check_for_div(line):
