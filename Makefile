@@ -21,11 +21,12 @@ test: test.blocks test.code test.code2 test.code3 test.code4
 test: test.div test.div2 test.font
 test: test.headers test.html-entities test.image test.links
 test: test.lists test.lists1 test.lists2 test.lists4
-test: test.literal test.p test.phrase test.span
+test: test.literal test.math test.math2 test.math4
+test: test.p test.phrase test.span
 test: test.table test.whitespace
 
 .PHONY: tests.failing
-tests.failing: test.math
+tests.failing: test.math3
 tests.failing: test.table2
 
 .PHONY: tests.optional

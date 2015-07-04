@@ -9,15 +9,8 @@ output stream.
   SPECIAL BLOCK ELEMENTS:
     <blockquote>: >
     <div>: [[div id="..." class="..." style="..." data-...="..."]]
-
-    [[code]] blocks do not nest and cannot be inside blockquotes.
-    [[code]] start and end blocks must be first token on a line.
-
-    [[div]] blocks nest and can be inside blockquotes.
-    [[div]] blocks can contain other block elements except for
-            blockquotes and code.
-    [[div]] start and end blocks must be first token on a line after
-            blockquote indicators.
+    <pre><code>: [[code type="..."]]
+    <div class="math-equation" id="equation-...">: [[math]]
 
   BLOCK ELEMENTS:
     <ul>: *
@@ -26,7 +19,6 @@ output stream.
     <p>:
     <hr>: ----
     <table>: ||
-    <pre><code>: [[code type="..."]]
 
   INLINE ELEMENTS:
     <em>: //
@@ -54,6 +46,7 @@ import sys
 PP = pprint.PrettyPrinter()
 
 BLOCK_TYPE_CODE = 'code'
+BLOCK_TYPE_MATH = 'math'
 BLOCK_TYPE_P = 'p'
 BLOCK_TYPE_UL = 'ul'
 BLOCK_TYPE_OL = 'ol'
@@ -82,6 +75,11 @@ RX_CODE_START = re.compile(
     r'(?P<content>.*)$')
 RX_CODE_END = re.compile(r'^\[\[/code\]\]$')
 RX_CODE_CONTENT = re.compile(r'^(?P<content>.*?)$')
+RX_MATH_START = re.compile(
+    r'^(?P<indent>\s*)(?P<raw_tag>\[\[math\]\])'
+    r'(?P<content>.*)$')
+RX_MATH_END = re.compile(r'^\[\[/math\]\]$')
+RX_MATH_CONTENT = re.compile(r'^(?P<content>.*?)$')
 RX_DIV_START = re.compile(
     r'^(?P<indent>\s*)(?P<raw_tag>\[\[div(?P<attributes>.*)\]\])$')
 RX_DIV_ATTR = re.compile(r'^\s*(?P<name>[a-z0-9-]+)="(?P<value>.*?)"'
@@ -1108,6 +1106,52 @@ class Code(Block):
         self.write_close_tag(output_stream)
 
 
+class Math(Block):
+    next_eqn_number = 0
+
+    def __init__(self, line, match):
+        self.input_nesting_level = 0
+        self.output_nesting_level = 0
+        Block.__init__(self, line, BLOCK_TYPE_MATH, match)
+        Math.next_eqn_number += 1
+        self.eqn_number = Math.next_eqn_number
+
+    def write_open_tag(self, output_stream):
+        output_stream.write(
+            '<span class="equation-number">({})</span>\n'.format(
+                self.eqn_number))
+        output_stream.write(
+            '<div class="math-equation" id="equation-{}">'.format(
+                self.eqn_number))
+        output_stream.write(r'\begin{align} ')
+
+    def write_math_content(self, output_stream):
+        n = self.output_nesting_level
+        while n > 0:
+            output_stream.write('[[math]]\n')
+            n -= 1
+
+        for i, match in enumerate(self.matches):
+            if i == 0 and RX_BLANK_LINE.search(match.group('content')):
+                continue
+            output_stream.write(cgi.escape(match.group('content'), quote=True))
+            if i < len(self.matches) - 1:
+                output_stream.write('\n')
+
+        while self.output_nesting_level > 0:
+            output_stream.write('\n[[/math]]')
+            self.output_nesting_level -= 1
+
+    def write_close_tag(self, output_stream):
+        output_stream.write(r' \end{align}')
+        output_stream.write('</div>\n')
+
+    def close(self, output_stream):
+        self.write_open_tag(output_stream)
+        self.write_math_content(output_stream)
+        self.write_close_tag(output_stream)
+
+
 class Paragraph(Block):
     def __init__(self, line, match):
         Block.__init__(self, line, BLOCK_TYPE_P, match)
@@ -1204,6 +1248,8 @@ class BlockParser(object):
             return HorizontalRule(line, match)
         elif block_type == BLOCK_TYPE_CODE:
             return Code(line, match)
+        elif block_type == BLOCK_TYPE_MATH:
+            return Math(line, match)
         elif block_type == BLOCK_TYPE_P:
             return Paragraph(line, match)
         elif block_type == BLOCK_TYPE_HN:
@@ -1279,11 +1325,36 @@ class BlockParser(object):
                         return BLOCK_TYPE_CODE, md
                     raise Exception('unparseable line: {}'.format(line))
 
+        if isinstance(self.current_block, Math):
+            md = RX_MATH_START.search(line)
+            if md:
+                self.current_block.input_nesting_level += 1
+                self.current_block.output_nesting_level += 1
+                return None, None
+            else:
+                md = RX_MATH_END.search(line)
+                if md:
+                    if self.current_block.input_nesting_level == 0:
+                        self.close_current_block()
+                        return None, None
+                    else:
+                        self.current_block.input_nesting_level -= 1
+                        return None, None
+                else:
+                    md = RX_MATH_CONTENT.search(line)
+                    if md:
+                        return BLOCK_TYPE_MATH, md
+                    raise Exception('unparseable line: {}'.format(line))
+
         if self.bq_level == 0:
             md = RX_CODE_START.search(line)
             if md:
                 self.close_current_block()
                 return BLOCK_TYPE_CODE, md
+            md = RX_MATH_START.search(line)
+            if md:
+                self.close_current_block()
+                return BLOCK_TYPE_MATH, md
 
         return analyze_line(line)
 

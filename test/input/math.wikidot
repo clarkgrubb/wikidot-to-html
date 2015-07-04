@@ -1,6 +1,4 @@
-This is [[$ \int_0^\infty \frac{1}{x^2} dx $]] inline math.
-
-And this:
+This:
 
 [[math]]
 \int_0^\infty \frac{1}{x^2} dx
