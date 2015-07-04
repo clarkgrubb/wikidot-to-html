@@ -16,7 +16,7 @@ test.%: | output
 	diff test/expected.output/$*.html output/$*.html
 
 .PHONY: test
-test: test.blocks test.code2 test.div test.font test.headers
+test: test.blocks test.code2 test.div test.div2 test.font test.headers
 test: test.html-entities test.image test.links
 test: test.lists test.lists1 test.lists2 test.lists4
 test: test.literal

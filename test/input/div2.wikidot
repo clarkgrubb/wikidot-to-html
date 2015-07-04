@@ -1,0 +1,11 @@
+[[div whatever="false"]]
+an unsupported attribute
+[[/div]]
+
+[[div id="id" class="class" style="style" data-foo="data-foo"]]
+all supported attributes
+[[/div]]
+
+[[div data-foo="data-foo" style="style" class="class" id="id"]]
+all supported attrributes in a different order
+[[/div]]

@@ -118,6 +118,8 @@ RX_CODE_START = re.compile(
 RX_CODE_END = re.compile(r'^\[\[/code\]\]$')
 RX_DIV_START = re.compile(
     r'^(?P<indent>\s*)(?P<raw_tag>\[\[div(?P<attributes>.*)\]\])$')
+RX_DIV_ATTR = re.compile(r'^\s*(?P<name>[a-z0-9-]+)="(?P<value>.*?)"'
+                         r'(?P<rest>.*)$')
 RX_DIV_END = re.compile(r'^\[\[/div\]\]$')
 RX_UL = re.compile(
     r'^(?P<indent>\s*)(?P<raw_tag>\*)\s+(?P<content>\S.*?)(?P<br> _)?$')
@@ -1128,9 +1130,39 @@ class Paragraph(Block):
 
 class Div(object):
     def __init__(self, output_stream, match):
-        # TODO: parse attributes
-        attr = match.group('attributes') or ''
-        output_stream.write('<div{}>\n'.format(attr))
+        self.attributes = {}
+        self.parse_attributes(match)
+        attrs = self.attributes_to_str()
+        if attrs:
+            output_stream.write('<div {}>\n'.format(attrs))
+        else:
+            output_stream.write('<div>\n')
+
+    def parse_attributes(self, match):
+        rest = match.group('attributes') or ''
+        while rest:
+            md = RX_DIV_ATTR.search(rest)
+            if md:
+                name = md.group('name')
+                value = md.group('value')
+                if name == 'id':
+                    self.attributes[name] = 'u-' + value
+                else:
+                    self.attributes[name] = value
+                rest = md.group('rest')
+            else:
+                rest = ''
+
+    def attributes_to_str(self):
+        attrs = []
+        for k in ['id', 'class', 'style']:
+            if k in self.attributes:
+                attrs.append('{}="{}"'.format(k, self.attributes[k]))
+        for k in sorted(self.attributes.keys()):
+            if k.startswith('data-'):
+                attrs.append('{}="{}"'.format(k, self.attributes[k]))
+
+        return ' '.join(attrs)
 
     def close(self, output_stream):
         output_stream.write('</div>\n')
