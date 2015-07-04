@@ -11,7 +11,7 @@ Another nested div.
 [[/div]]
 
 * one
-* two 
+* two
 * three
 
 > lorem ipsum
@@ -24,7 +24,8 @@ Another nested div.
 
 > what
 > ever
-> dude[[div class="foo"]]
+> dude
+[[div class="foo"]]
 Inside the div.
 
 Still inside.

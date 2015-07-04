@@ -110,14 +110,19 @@ MULTILINE_BLOCK_TYPES = [BLOCK_TYPE_P,
                          BLOCK_TYPE_OL,
                          BLOCK_TYPE_TABLE]
 
+RX_BLOCKQUOTE = re.compile(
+    r'^(?P<greater_than_signs>>+)\s*(?P<content>.*?)(?P<br> _)?$')
+RX_CODE_START = re.compile(
+    r'^(?P<indent>\s*)(?P<raw_tag>\[\[code(\s+type="(?P<type>.*?)"\s*)?\]\])'
+    r'(?P<content>.*)$')
+RX_CODE_END = re.compile(r'^\[\[/code\]\]$')
+RX_DIV_START = re.compile(
+    r'^(?P<indent>\s*)(?P<raw_tag>\[\[div(?P<attributes>.*)\]\])$')
+RX_DIV_END = re.compile(r'^\[\[/div\]\]$')
 RX_UL = re.compile(
     r'^(?P<indent>\s*)(?P<raw_tag>\*)\s+(?P<content>\S.*?)(?P<br> _)?$')
 RX_OL = re.compile(
     r'^(?P<indent>\s*)(?P<raw_tag>\#)\s+(?P<content>\S.*?)(?P<br> _)?$')
-RX_BLOCKQUOTE = re.compile(
-    r'^(?P<greater_than_signs>>+)\s*(?P<content>.*?)(?P<br> _)?$')
-RX_CODE = re.compile(
-    r'^(?P<indent>\s*)(?P<raw_tag>\[\[code\]\])(?P<content>.*?)(?P<br> _)?$')
 RX_TABLE = re.compile(
     r'^(?P<indent>\s*)(?P<content>\|\|.*?)(?P<br> _)?$')
 RX_HN = re.compile(
@@ -1121,6 +1126,16 @@ class Paragraph(Block):
                 output_stream.write('\n')
 
 
+class Div(object):
+    def __init__(self, output_stream, match):
+        # TODO: parse attributes
+        attr = match.group('attributes') or ''
+        output_stream.write('<div{}>\n'.format(attr))
+
+    def close(self, output_stream):
+        output_stream.write('</div>\n')
+
+
 class LineParser(object):
     def __init__(self, input_stream, output_stream):
         self.input_stream = input_stream
@@ -1128,6 +1143,12 @@ class LineParser(object):
         self.current_block = None
         self.bq_level = 0
         self.continued_line = False
+        self.divs = []
+
+    def close_current_block(self):
+        if self.current_block:
+            self.current_block.close(self.output_stream)
+        self.current_block = None
 
     def block_factory(self, line, block_type=None, match=None):
         if block_type == BLOCK_TYPE_UL:
@@ -1155,9 +1176,8 @@ class LineParser(object):
         else:
             new_bq_level = 0
 
-        if self.current_block and new_bq_level != self.bq_level:
-            self.current_block.close(self.output_stream)
-            self.current_block = None
+        if new_bq_level != self.bq_level:
+            self.close_current_block()
 
         if new_bq_level > self.bq_level:
             for _ in range(0, new_bq_level - self.bq_level):
@@ -1170,9 +1190,35 @@ class LineParser(object):
 
         return line
 
+    def check_for_div(self, line):
+        md = RX_DIV_START.search(line)
+        if md:
+            self.close_current_block()
+            self.divs.append(Div(self.output_stream, md))
+            return True
+
+        md = RX_DIV_END.search(line)
+        if md:
+            self.close_current_block()
+            if self.divs:
+                div = self.divs.pop()
+                div.close(self.output_stream)
+            return True
+
+        return False
+
+    def close_divs(self):
+        while self.divs:
+            div = self.divs.pop()
+            div.close(self.output_stream)
+
     def process_lines(self):
         for line in self.input_stream:
             line = self.adjust_blockquote_level(line)
+
+            if self.check_for_div(line):
+                continue
+
             block_type, match = analyze_line(line)
 
             if not self.current_block:
@@ -1185,17 +1231,14 @@ class LineParser(object):
                   self.current_block.multiline_type):
                 self.current_block.add_line(line, block_type, match)
             else:
-                if self.current_block:
-                    self.current_block.close(self.output_stream)
+                self.close_current_block()
                 self.current_block = self.block_factory(line,
                                                         block_type,
                                                         match)
 
             self.continued_line = match.group('br')
 
-        if self.current_block:
-            self.current_block.close(self.output_stream)
-            self.current_block = None
+        self.close_current_block()
         self.adjust_blockquote_level('')
 
 

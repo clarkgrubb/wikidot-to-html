@@ -209,7 +209,7 @@ test.whitespace: | output
 	diff test/expected.output/whitespace.html output/whitespace.html
 
 .PHONY: test
-test: test.blocks test.code2 test.font test.headers
+test: test.blocks test.code2 test.div test.font test.headers
 test: test.html-entities test.image test.links
 test: test.lists test.lists1 test.lists2
 test: test.literal
@@ -217,7 +217,7 @@ test: test.phrase test.table test.whitespace
 
 .PHONY: test.failing
 test.failing: test.block-quote test.code
-test.failing: test.comment test.div
+test.failing: test.comment
 test.failing: test.list3
 test.failing: test.math test.non-ascii
 test.failing: test.smart-quotes test.smart-quotes2
