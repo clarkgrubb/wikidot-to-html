@@ -20,8 +20,10 @@ output stream.
     [[code]] start and end blocks must be first token on a line.
 
     [[div]] blocks nest and can be inside blockquotes.
+    [[div]] blocks can contain other block elements except for
+            blockquotes and code.
     [[div]] start and end blocks must be first token on a line after
-          blockquote indicators.
+            blockquote indicators.
 
   INLINE ELEMENTS:
     <em>: //
@@ -1119,81 +1121,86 @@ class Paragraph(Block):
                 output_stream.write('\n')
 
 
-def block_factory(line, block_type=None, match=None):
-    if block_type == BLOCK_TYPE_UL:
-        return List(line, match)
-    elif block_type == BLOCK_TYPE_OL:
-        return List(line, match)
-    elif block_type == BLOCK_TYPE_EMPTY:
-        return Empty(line, match)
-    elif block_type == BLOCK_TYPE_HR:
-        return HorizontalRule(line, match)
-    elif block_type == BLOCK_TYPE_P:
-        return Paragraph(line, match)
-    elif block_type == BLOCK_TYPE_HN:
-        return Header(line, match)
-    elif block_type == BLOCK_TYPE_TABLE:
-        return Table(line, match)
-    else:
-        return Block(line, block_type, match)
+class LineParser(object):
+    def __init__(self, input_stream, output_stream):
+        self.input_stream = input_stream
+        self.output_stream = output_stream
+        self.current_block = None
+        self.bq_level = 0
+        self.continued_line = False
 
-
-def adjust_blockquote_level(output_stream, current_block, line, bq_level):
-    md = RX_BLOCKQUOTE.search(line)
-    if md:
-        new_bq_level = len(md.group('greater_than_signs'))
-        line = md.group('content')
-    else:
-        new_bq_level = 0
-
-    if current_block and new_bq_level != bq_level:
-        current_block.close(output_stream)
-        current_block = None
-
-    if new_bq_level > bq_level:
-        for _ in range(0, new_bq_level - bq_level):
-            output_stream.write('<blockquote>\n')
-    elif new_bq_level < bq_level:
-        for _ in range(0, bq_level - new_bq_level):
-            output_stream.write('</blockquote>\n')
-
-    return line, new_bq_level, current_block
-
-
-def process_lines(input_stream, output_stream):
-    current_block = None
-    bq_level = 0
-    continued_line = False
-    for line in input_stream:
-        line, bq_level, current_block = adjust_blockquote_level(output_stream,
-                                                                current_block,
-                                                                line,
-                                                                bq_level)
-
-        block_type, match = analyze_line(line)
-
-        if not current_block:
-            current_block = block_factory(line, block_type, match)
-        elif continued_line:
-            current_block.add_line(line, block_type, match)
-        elif (block_type == current_block.block_type and
-              current_block.multiline_type):
-            current_block.add_line(line, block_type, match)
+    def block_factory(self, line, block_type=None, match=None):
+        if block_type == BLOCK_TYPE_UL:
+            return List(line, match)
+        elif block_type == BLOCK_TYPE_OL:
+            return List(line, match)
+        elif block_type == BLOCK_TYPE_EMPTY:
+            return Empty(line, match)
+        elif block_type == BLOCK_TYPE_HR:
+            return HorizontalRule(line, match)
+        elif block_type == BLOCK_TYPE_P:
+            return Paragraph(line, match)
+        elif block_type == BLOCK_TYPE_HN:
+            return Header(line, match)
+        elif block_type == BLOCK_TYPE_TABLE:
+            return Table(line, match)
         else:
-            if current_block:
-                current_block.close(output_stream)
-            current_block = block_factory(line, block_type, match)
+            return Block(line, block_type, match)
 
-        continued_line = match.group('br')
+    def adjust_blockquote_level(self, line):
+        md = RX_BLOCKQUOTE.search(line)
+        if md:
+            new_bq_level = len(md.group('greater_than_signs'))
+            line = md.group('content')
+        else:
+            new_bq_level = 0
 
-    if current_block:
-        current_block.close(output_stream)
+        if self.current_block and new_bq_level != self.bq_level:
+            self.current_block.close(self.output_stream)
+            self.current_block = None
 
-    adjust_blockquote_level(output_stream, None, '', bq_level)
+        if new_bq_level > self.bq_level:
+            for _ in range(0, new_bq_level - self.bq_level):
+                self.output_stream.write('<blockquote>\n')
+        elif new_bq_level < self.bq_level:
+            for _ in range(0, self.bq_level - new_bq_level):
+                self.output_stream.write('</blockquote>\n')
+
+        self.bq_level = new_bq_level
+
+        return line
+
+    def process_lines(self):
+        for line in self.input_stream:
+            line = self.adjust_blockquote_level(line)
+            block_type, match = analyze_line(line)
+
+            if not self.current_block:
+                self.current_block = self.block_factory(line,
+                                                        block_type,
+                                                        match)
+            elif self.continued_line:
+                self.current_block.add_line(line, block_type, match)
+            elif (block_type == self.current_block.block_type and
+                  self.current_block.multiline_type):
+                self.current_block.add_line(line, block_type, match)
+            else:
+                if self.current_block:
+                    self.current_block.close(self.output_stream)
+                self.current_block = self.block_factory(line,
+                                                        block_type,
+                                                        match)
+
+            self.continued_line = match.group('br')
+
+        if self.current_block:
+            self.current_block.close(self.output_stream)
+            self.current_block = None
+        self.adjust_blockquote_level('')
 
 
 def wikidot_to_html(input_stream, output_stream):
-    process_lines(input_stream, output_stream)
+    LineParser(input_stream, output_stream).process_lines()
 
 
 if __name__ == '__main__':
