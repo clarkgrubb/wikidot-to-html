@@ -1,19 +1,13 @@
 #!/usr/bin/env python
-"""The parser reads lines of input containing Wikidot-style markup
+"""
+The parser reads lines of input containing Wikidot-style markup
 from an input stream and writes the corresponding HTML to an
 output stream.
 
 ## Markup
 
-  BLOCK ELEMENTS:
+  SPECIAL BLOCK ELEMENTS:
     <blockquote>: >
-    <ul>: *
-    <ol>: #
-    <hn>: +
-    <p>:
-    <hr>: ----
-    <table>: ||
-    <pre><code>: [[code type="..."]]
     <div>: [[div id="..." class="..." style="..." data-...="..."]]
 
     [[code]] blocks do not nest and cannot be inside blockquotes.
@@ -24,6 +18,15 @@ output stream.
             blockquotes and code.
     [[div]] start and end blocks must be first token on a line after
             blockquote indicators.
+
+  BLOCK ELEMENTS:
+    <ul>: *
+    <ol>: #
+    <hn>: +
+    <p>:
+    <hr>: ----
+    <table>: ||
+    <pre><code>: [[code type="..."]]
 
   INLINE ELEMENTS:
     <em>: //
@@ -54,7 +57,7 @@ subclass of the Block class.
 
 The Block.close() method is invoked to parse the content of a block
 element, if any, and write the HTML to the output stream.  To parse
-the content, a Parser object is created.
+the content, a InlineParser object is created.
 
 Each Block object has two attributes representing its content: lines
 and matches.  The lines attribute is a list of raw lines with any
@@ -70,12 +73,12 @@ objects contain the following named groups:
 
 The function Block.write_content iterates over the matches, extracts
 what the regex labeled as 'content', calls lex() on it, passes the
-result to Parser.parse(), and then prints Parser.top_node.
+result to InlineParser.parse(), and then prints InlineParser.top_node.
 
 ## Parsing Block Content
 
 The parser builds a tree of Node objects, keeping the root
-node in Parser.top_node.  The children of each node are in
+node in InlineParser.top_node.  The children of each node are in
 Node.children.  The children of a node are not always Node
 objects; they can be simple strings or Text objects.  Text
 objects do not have children.  Node objects and Text objects
@@ -90,6 +93,7 @@ import sys
 
 PP = pprint.PrettyPrinter()
 
+BLOCK_TYPE_CODE = 'code'
 BLOCK_TYPE_P = 'p'
 BLOCK_TYPE_UL = 'ul'
 BLOCK_TYPE_OL = 'ol'
@@ -105,7 +109,8 @@ BLOCK_TYPE_HR = 'hr'
 BLOCK_TYPE_HN = '_hn'
 BLOCK_TYPE_EMPTY = '_empty'
 
-MULTILINE_BLOCK_TYPES = [BLOCK_TYPE_P,
+MULTILINE_BLOCK_TYPES = [BLOCK_TYPE_CODE,
+                         BLOCK_TYPE_P,
                          BLOCK_TYPE_UL,
                          BLOCK_TYPE_OL,
                          BLOCK_TYPE_TABLE]
@@ -116,6 +121,7 @@ RX_CODE_START = re.compile(
     r'^(?P<indent>\s*)(?P<raw_tag>\[\[code(\s+type="(?P<type>.*?)"\s*)?\]\])'
     r'(?P<content>.*)$')
 RX_CODE_END = re.compile(r'^\[\[/code\]\]$')
+RX_CODE_CONTENT = re.compile(r'^(?P<content>.*?)$')
 RX_DIV_START = re.compile(
     r'^(?P<indent>\s*)(?P<raw_tag>\[\[div(?P<attributes>.*)\]\])$')
 RX_DIV_ATTR = re.compile(r'^\s*(?P<name>[a-z0-9-]+)="(?P<value>.*?)"'
@@ -173,6 +179,7 @@ RX_START_ROW = re.compile(r'^\|\|(?P<row>.*)$')
 RX_END_ROW = re.compile(r'^(?P<row>.*)\|\|$')
 RX_TAGGED_CELL = re.compile(r'^(?P<tag>~|<|=|>)\s+(?P<content>.*)$')
 RX_EMPTY_PARAGRAPH = re.compile(r'^(<br />|\s)*$', re.M)
+RX_BLANK_LINE = re.compile(r'^\s*$')
 
 
 class ClosureNode(object):
@@ -482,7 +489,7 @@ def lex(text):
     return tokens
 
 
-class Parser(object):
+class InlineParser(object):
     def __init__(self):
         self.italic = False
         self.bold = False
@@ -832,7 +839,7 @@ class Block(object):
         output_stream.write('</{}>\n'.format(self.tag))
 
     def close(self, output_stream):
-        parser = Parser()
+        parser = InlineParser()
         self.write_open_tag(output_stream)
         self.write_content(parser, output_stream)
         self.write_close_tag(output_stream)
@@ -876,7 +883,7 @@ class Table(Block):
         self.parser = None
 
     def start_cell(self):
-        self.parser = Parser()
+        self.parser = InlineParser()
 
     def add_cell_content(self, content):
         self.parser.parse(lex(content))
@@ -1054,7 +1061,7 @@ class List(Block):
         output_stream.write(str(node))
 
     def close(self, output_stream):
-        parser = Parser()
+        parser = InlineParser()
         node_tag_indent = []
         triple = None
         for match in self.matches:
@@ -1097,6 +1104,44 @@ class Empty(Block):
         pass
 
 
+class Code(Block):
+    def __init__(self, line, match):
+        self.input_nesting_level = 0
+        self.output_nesting_level = 0
+        Block.__init__(self, line, BLOCK_TYPE_CODE, match)
+
+    def write_open_tag(self, output_stream):
+        output_stream.write('<div class="code">\n')
+        output_stream.write('<pre>\n')
+        output_stream.write('<code>')
+
+    def write_code_content(self, output_stream):
+        n = self.output_nesting_level
+        while n > 0:
+            output_stream.write('[[code]]\n')
+            n -= 1
+
+        for i, match in enumerate(self.matches):
+            if i == 0 and RX_BLANK_LINE.search(match.group('content')):
+                continue
+            output_stream.write(cgi.escape(match.group('content'), quote=True))
+            if i < len(self.matches) - 1:
+                output_stream.write('\n')
+
+        while self.output_nesting_level > 0:
+            output_stream.write('\n[[/code]]')
+            self.output_nesting_level -= 1
+
+    def write_close_tag(self, output_stream):
+        output_stream.write('</code>\n')
+        output_stream.write('</pre></div>\n')
+
+    def close(self, output_stream):
+        self.write_open_tag(output_stream)
+        self.write_code_content(output_stream)
+        self.write_close_tag(output_stream)
+
+
 class Paragraph(Block):
     def __init__(self, line, match):
         Block.__init__(self, line, BLOCK_TYPE_P, match)
@@ -1110,7 +1155,7 @@ class Paragraph(Block):
         return parser.top_node
 
     def close(self, output_stream):
-        parser = Parser()
+        parser = InlineParser()
         top_node = self.get_content(parser)
         content = str(top_node)
         suppress_tags = False
@@ -1168,7 +1213,7 @@ class Div(object):
         output_stream.write('</div>\n')
 
 
-class LineParser(object):
+class BlockParser(object):
     def __init__(self, input_stream, output_stream):
         self.input_stream = input_stream
         self.output_stream = output_stream
@@ -1191,6 +1236,8 @@ class LineParser(object):
             return Empty(line, match)
         elif block_type == BLOCK_TYPE_HR:
             return HorizontalRule(line, match)
+        elif block_type == BLOCK_TYPE_CODE:
+            return Code(line, match)
         elif block_type == BLOCK_TYPE_P:
             return Paragraph(line, match)
         elif block_type == BLOCK_TYPE_HN:
@@ -1244,6 +1291,36 @@ class LineParser(object):
             div = self.divs.pop()
             div.close(self.output_stream)
 
+    def block_type_and_match(self, line):
+        if isinstance(self.current_block, Code):
+            md = RX_CODE_START.search(line)
+            if md:
+                self.current_block.input_nesting_level += 1
+                self.current_block.output_nesting_level += 1
+                return None, None
+            else:
+                md = RX_CODE_END.search(line)
+                if md:
+                    if self.current_block.input_nesting_level == 0:
+                        self.close_current_block()
+                        return None, None
+                    else:
+                        self.current_block.input_nesting_level -= 1
+                        return None, None
+                else:
+                    md = RX_CODE_CONTENT.search(line)
+                    if md:
+                        return BLOCK_TYPE_CODE, md
+                    raise Exception('unparseable line: {}'.format(line))
+
+        if self.bq_level == 0:
+            md = RX_CODE_START.search(line)
+            if md:
+                self.close_current_block()
+                return BLOCK_TYPE_CODE, md
+
+        return analyze_line(line)
+
     def process_lines(self):
         for line in self.input_stream:
             line = line.rstrip()
@@ -1252,7 +1329,9 @@ class LineParser(object):
             if self.check_for_div(line):
                 continue
 
-            block_type, match = analyze_line(line)
+            block_type, match = self.block_type_and_match(line)
+            if not block_type:
+                continue
 
             if not self.current_block:
                 self.current_block = self.block_factory(line,
@@ -1269,14 +1348,17 @@ class LineParser(object):
                                                         block_type,
                                                         match)
 
-            self.continued_line = match.group('br')
+            try:
+                self.continued_line = match.group('br')
+            except IndexError:
+                self.continued_line = False
 
         self.close_current_block()
         self.adjust_blockquote_level('')
 
 
 def wikidot_to_html(input_stream, output_stream):
-    LineParser(input_stream, output_stream).process_lines()
+    BlockParser(input_stream, output_stream).process_lines()
 
 
 if __name__ == '__main__':

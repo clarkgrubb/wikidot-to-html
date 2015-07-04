@@ -16,20 +16,22 @@ test.%: | output
 	diff test/expected.output/$*.html output/$*.html
 
 .PHONY: test
-test: test.blocks test.code2 test.div test.div2 test.font test.headers
-test: test.html-entities test.image test.links
+test: test.blocks test.code test.code2 test.code3 test.div test.div2 test.font
+test: test.headers test.html-entities test.image test.links
 test: test.lists test.lists1 test.lists2 test.lists4
-test: test.literal
-test: test.phrase test.table test.whitespace
+test: test.literal test.phrase test.table test.whitespace
 
 .PHONY: tests.failing
-tests.failing: test.block-quote test.code
-tests.failing: test.comment
-tests.failing: test.list3
-tests.failing: test.math test.non-ascii
-tests.failing: test.smart-quotes test.smart-quotes2
+tests.failing: test.block-quote
 tests.failing: test.span
+tests.failing: test.math
 tests.failing: test.table2
+
+.PHONY: tests.optional
+tests.optional: test.non-ascii
+tests.optional: test.comment
+tests.optional: test.list3
+tests.optional: test.smart-quotes test.smart-quotes2
 
 .PHONY: all
 all:
