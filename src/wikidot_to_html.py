@@ -779,7 +779,9 @@ class Block(object):
         self.lines.append(line)
         if block_type is None:
             block_type, match = analyze_line(line)
-        if block_type != BLOCK_TYPE_P and block_type != self.block_type:
+        if block_type != BLOCK_TYPE_P and \
+           block_type != BLOCK_TYPE_EMPTY and \
+           block_type != self.block_type:
             raise Exception('block type mismatch: {}: {}'.format(
                 self.block_type, block_type))
         self.matches.append(match)
@@ -933,7 +935,10 @@ class Table(Block):
         output_stream.write('<table class="wiki-content-table">\n')
         inside_cell = False
         for match in self.matches:
-            content = match.group('content')
+            try:
+                content = match.group('content')
+            except IndexError:
+                content = ''
             md = RX_FULL_ROW.search(content)
             if md:
                 if inside_cell:
@@ -971,7 +976,7 @@ class Table(Block):
             cells = row.split('||')
             if len(cells) == 1:
                 lone_cell = cells.pop()
-                self.print_cells(output_stream, None, None, None, lone_cell)
+                self.print_cells(output_stream, None, [], None, lone_cell)
             else:
                 first_cell = cells.pop(0)
                 last_cell = cells.pop()
