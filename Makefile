@@ -27,10 +27,11 @@ test: test.table test.table3 test.table4 test.table5 test.table6 test.table7
 test: test.table8 test.whitespace
 
 .PHONY: tests.failing
-tests.failing: test.table2
+tests.failing: test.code5 test.table9
 
 .PHONY: tests.optional
-tests.failing: test.math3
+tests.optional: test.table2
+tests.optional: test.math3
 tests.optional: test.non-ascii
 tests.optional: test.comment2
 tests.optional: test.list3

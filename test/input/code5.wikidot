@@ -1,0 +1,6 @@
+[[code]]
+> Math.log(10)
+2.302585092994046
+
+> alert("Hello, World!")
+[[/code]]
