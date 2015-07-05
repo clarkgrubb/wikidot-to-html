@@ -84,6 +84,7 @@ import cgi
 import pprint
 import re
 import sys
+# import traceback
 
 PP = pprint.PrettyPrinter(stream=sys.stderr)
 
@@ -786,22 +787,23 @@ class InlineParser(object):
         return self.top_node
 
 
-def analyze_line(line):
-    md = RX_UL.search(line)
-    if md:
-        return BLOCK_TYPE_UL, md
-    md = RX_OL.search(line)
-    if md:
-        return BLOCK_TYPE_OL, md
+def analyze_line(line, current_block):
+    if not current_block or current_block.block_type != BLOCK_TYPE_TABLE:
+        md = RX_UL.search(line)
+        if md:
+            return BLOCK_TYPE_UL, md
+        md = RX_OL.search(line)
+        if md:
+            return BLOCK_TYPE_OL, md
+        md = RX_HN.search(line)
+        if md:
+            return BLOCK_TYPE_HN, md
+        md = RX_HR.search(line)
+        if md:
+            return BLOCK_TYPE_HR, md
     md = RX_TABLE.search(line)
     if md:
         return BLOCK_TYPE_TABLE, md
-    md = RX_HN.search(line)
-    if md:
-        return BLOCK_TYPE_HN, md
-    md = RX_HR.search(line)
-    if md:
-        return BLOCK_TYPE_HR, md
     md = RX_EMPTY.search(line)
     if md:
         return BLOCK_TYPE_EMPTY, md
@@ -819,14 +821,14 @@ class Block(object):
             self.block_type = block_type
             self.matches = [match]
         else:
-            self.block_type, match = analyze_line(line)
+            self.block_type, match = analyze_line(line, None)
             self.matches.append(match)
         self.tag = self._tag()
 
     def add_line(self, line, block_type=None, match=None, continued=False):
         self.lines.append(line)
         if block_type is None:
-            block_type, match = analyze_line(line)
+            block_type, match = analyze_line(line, None)
         if not continued and \
            block_type != BLOCK_TYPE_P and \
            block_type != BLOCK_TYPE_EMPTY and \
@@ -1453,7 +1455,7 @@ class BlockParser(object):
                 self.close_current_block()
                 return BLOCK_TYPE_MATH, md
 
-        return analyze_line(line)
+        return analyze_line(line, self.current_block)
 
     def process_lines(self):
         try:
@@ -1490,7 +1492,7 @@ class BlockParser(object):
                                                             match)
 
                 try:
-                    self.continued_line = match.group('br')
+                    self.continued_line = line.endswith(' _')
                 except IndexError:
                     self.continued_line = False
 
