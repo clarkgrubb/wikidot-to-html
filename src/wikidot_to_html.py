@@ -981,8 +981,7 @@ class Table(Block):
         for token in tokens:
             if token == '||':
                 if inside_esc_literal:
-                    cell += \
-                        '[[span style="white-space: pre-wrap;"]]||[[/span]]'
+                    cell += '||'
                 else:
                     cells.append(cell)
                     cell = ''
@@ -991,14 +990,17 @@ class Table(Block):
                     cell += token
                 else:
                     inside_esc_literal = (not inside_esc_literal)
+                    cell += token
             elif token == '@<':
                 if inside_no_esc_literal:
                     raise Exception('nested no-escape literal: @<')
                 else:
                     inside_no_esc_literal = True
+                    cell += token
             elif token == '>@':
                 if inside_no_esc_literal:
                     inside_no_esc_literal = False
+                    cell += token
                 else:
                     raise Exception(
                         'unmatched no-escape literal terminator: >@')
