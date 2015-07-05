@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-The parser reads lines of input containing Wikidot-style markup
+he parser reads lines of input containing Wikidot-style markup
 from an input stream and writes the corresponding HTML to an
 output stream.
 
@@ -117,11 +117,12 @@ RX_TRIPLE_BRACKET = re.compile(
 RX_DOUBLE_BRACKET = re.compile(
     r'^(?P<token>\[\[[^\]]+\]\])(?P<text>.*)$')
 RX_SINGLE_BRACKET = re.compile(
-    r'^(?P<token>\[[^\]]+\])(?P<text>.*)$')
+    r'^(?P<token>\[(?P<head>[^\]\s]+)[^\]]*\])(?P<text>.*)$')
 RX_DOUBLED_CHAR = re.compile(
     r'^(//|\*\*|\{\{|\}\}|--|__|,,|\^\^|@@|@<|>@|\|\|)')
 RX_COLOR_HEAD = re.compile(r'^(?P<token>##[a-zA-Z0-9 ]+\|)(?P<text>.*)$')
 RX_LEAD_WHITESPACE = re.compile(r'^(?P<token>\s+)(?P<text>.*)$')
+RX_URL_FRAGMENT = re.compile(r'^#[a-zA-Z][a-zA-Z0-9-]*$')
 RX_URL = re.compile(
     r'^(?P<token>https?://[a-zA-Z0-9-._~:/#&?=+,;]*[a-zA-Z0-9-_~/#&?=+])'
     r'(?P<text>.*)$')
@@ -386,14 +387,16 @@ def lex(text):
                 continue
             md = RX_SINGLE_BRACKET.search(text)
             if md:
-                if prefix:
-                    tokens.append(prefix)
-                    prefix = ''
-                tokens.append(md.group('token'))
-                prefix_and_text = md.group('text')
-                text = prefix_and_text
-                text_i = 0
-                continue
+                head = md.group('head')
+                if RX_URL.search(head) or RX_URL_FRAGMENT.search(head):
+                    if prefix:
+                        tokens.append(prefix)
+                        prefix = ''
+                    tokens.append(md.group('token'))
+                    prefix_and_text = md.group('text')
+                    text = prefix_and_text
+                    text_i = 0
+                    continue
         if text.startswith('##'):
             if prefix:
                 tokens.append(prefix)
