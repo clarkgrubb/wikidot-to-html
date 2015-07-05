@@ -775,11 +775,12 @@ class Block(object):
             self.matches.append(match)
         self.tag = self._tag()
 
-    def add_line(self, line, block_type=None, match=None):
+    def add_line(self, line, block_type=None, match=None, continued=False):
         self.lines.append(line)
         if block_type is None:
             block_type, match = analyze_line(line)
-        if block_type != BLOCK_TYPE_P and \
+        if not continued and \
+           block_type != BLOCK_TYPE_P and \
            block_type != BLOCK_TYPE_EMPTY and \
            block_type != self.block_type:
             raise Exception('block type mismatch: {}: {}'.format(
@@ -1363,42 +1364,49 @@ class BlockParser(object):
         return analyze_line(line)
 
     def process_lines(self):
-        for line in self.input_stream:
-            line = line.rstrip()
-            line = self.adjust_blockquote_level(line)
+        try:
+            for i, line in enumerate(self.input_stream, start=1):
+                line = line.rstrip()
+                line = self.adjust_blockquote_level(line)
 
-            if self.check_for_div(line):
-                continue
+                if self.check_for_div(line):
+                    continue
 
-            block_type, match = self.block_type_and_match(line)
-            if not block_type:
-                continue
+                block_type, match = self.block_type_and_match(line)
+                if not block_type:
+                    continue
 
-            if block_type == BLOCK_TYPE_EMPTY and self.bq_level > 0:
-                continue
+                if block_type == BLOCK_TYPE_EMPTY and self.bq_level > 0:
+                    continue
 
-            if not self.current_block:
-                self.current_block = self.block_factory(line,
-                                                        block_type,
-                                                        match)
-            elif self.continued_line:
-                self.current_block.add_line(line, block_type, match)
-            elif (block_type == self.current_block.block_type and
-                  self.current_block.multiline_type):
-                self.current_block.add_line(line, block_type, match)
-            else:
-                self.close_current_block()
-                self.current_block = self.block_factory(line,
-                                                        block_type,
-                                                        match)
+                if not self.current_block:
+                    self.current_block = self.block_factory(line,
+                                                            block_type,
+                                                            match)
+                elif self.continued_line:
+                    self.current_block.add_line(line,
+                                                block_type,
+                                                match,
+                                                continued=True)
+                elif (block_type == self.current_block.block_type and
+                      self.current_block.multiline_type):
+                    self.current_block.add_line(line, block_type, match)
+                else:
+                    self.close_current_block()
+                    self.current_block = self.block_factory(line,
+                                                            block_type,
+                                                            match)
 
-            try:
-                self.continued_line = match.group('br')
-            except IndexError:
-                self.continued_line = False
+                try:
+                    self.continued_line = match.group('br')
+                except IndexError:
+                    self.continued_line = False
 
-        self.close_current_block()
-        self.adjust_blockquote_level('')
+            self.close_current_block()
+            self.adjust_blockquote_level('')
+        except:
+            sys.stderr.write("ERROR at line {}: {}\n".format(i, line))
+            raise
 
 
 def wikidot_to_html(input_stream, output_stream):
