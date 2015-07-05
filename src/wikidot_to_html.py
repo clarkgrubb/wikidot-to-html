@@ -42,8 +42,9 @@ import cgi
 import pprint
 import re
 import sys
+import traceback
 
-PP = pprint.PrettyPrinter()
+PP = pprint.PrettyPrinter(stream=sys.stderr)
 
 BLOCK_TYPE_CODE = 'code'
 BLOCK_TYPE_MATH = 'math'
@@ -396,6 +397,7 @@ def lex(text):
         if text.startswith('##'):
             if prefix:
                 tokens.append(prefix)
+                prefix = ''
             md = RX_COLOR_HEAD.search(text)
             if md:
                 tokens.append(md.group('token'))

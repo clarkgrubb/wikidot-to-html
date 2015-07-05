@@ -23,10 +23,10 @@ test: test.headers test.html-entities test.image test.links
 test: test.lists test.lists1 test.lists2 test.lists4
 test: test.literal test.math test.math2 test.math4
 test: test.p test.phrase test.span
-test: test.table test.table4 test.table5 test.whitespace
+test: test.table test.table4 test.table5 test.table6 test.whitespace
 
 .PHONY: tests.failing
-tests.failing: test.table2 test.table3 test.table6
+tests.failing: test.table2 test.table3 test.table7
 
 .PHONY: tests.optional
 tests.failing: test.math3

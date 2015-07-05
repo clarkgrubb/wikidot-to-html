@@ -1,0 +1,6 @@
+||[[# logical-op]][#logical-op-note logical operators] _
+@<&nbsp;>@||@@&& ||@@ !||&& @@||@@ ! _
+##gray|//lower precedence://## _
+##purple|and or xor##||##purple|and or not##||&& @@||@@ ! _
+##gray|//lower precedence://## _
+##purple|and or not##||
