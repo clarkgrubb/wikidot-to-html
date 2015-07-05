@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-he parser reads lines of input containing Wikidot-style markup
+Reads lines of input containing Wikidot-style markup
 from an input stream and writes the corresponding HTML to an
 output stream.
 
@@ -36,13 +36,47 @@ output stream.
     <br>: _
     escape literal: @@
     no escape literal: @< >@
+
+## Debugging
+
+    The following are sufficient for debugging:
+
+        import pprint
+        import traceback
+
+        PP = pprint.PrettyPrinter(stream=sys.stderr)
+
+        PP.pprint([1, [2, 3]])
+        sys.stderr.write("DEBUG foo: {}\n".format(foo))
+        traceback.print_stack()
+
+    To diagnose a problem, first find a minimal input which causes the
+    problem.
+
+    To find out how the lexer is splitting the input into tokens, use
+    PP.print(tokens) before lex() returns.
+
+    In InlineParser.parse(), use debug statements to figure out which
+    clause is getting triggered for each token.
+
+    If a Node object is rendered incorrectly, inspect the attributes
+    of the object when it renders in __str__().
+
+    Put debug statements in Block subclass constructors or
+    BlockParser.add_line() to diagnose problems with how Block objects
+    are created.  Use traceback.print_stack() to figure out who the
+    caller is.
+
+    Put debug statements in Block.close() or the close() method of
+    derived classes to inspect self.lines or self.matches if the Block
+    object is not rendered correctly.
+
 """
 
 import cgi
 import pprint
 import re
 import sys
-# import traceback
 
 PP = pprint.PrettyPrinter(stream=sys.stderr)
 
@@ -139,6 +173,7 @@ RX_END_ROW = re.compile(r'^(?P<row>.*)\|\|$')
 RX_TAGGED_CELL = re.compile(r'^(?P<tag>~|<|=|>)\s+(?P<content>.*)$')
 RX_EMPTY_PARAGRAPH = re.compile(r'^(<br />|\s)*$', re.M)
 RX_BLANK_LINE = re.compile(r'^\s*$')
+RX_TABLE_CELL_LEXER = re.compile(r'(\|\||@@|@<|>@)')
 
 
 class ClosureNode(object):
@@ -937,6 +972,48 @@ class Table(Block):
         if last_cell is not None:
             self.print_start_of_cell(last_cell)
 
+    def row_to_cells(self, row):
+        cells = []
+        cell = ''
+        inside_esc_literal = False
+        inside_no_esc_literal = False
+        tokens = re.split(RX_TABLE_CELL_LEXER, row)
+        for token in tokens:
+            if token == '||':
+                if inside_esc_literal:
+                    cell += \
+                        '[[span style="white-space: pre-wrap;"]]||[[/span]]'
+                else:
+                    cells.append(cell)
+                    cell = ''
+            elif token == '@@':
+                if inside_no_esc_literal:
+                    cell += token
+                else:
+                    inside_esc_literal = (not inside_esc_literal)
+            elif token == '@<':
+                if inside_no_esc_literal:
+                    raise Exception('nested no-escape literal: @<')
+                else:
+                    inside_no_esc_literal = True
+            elif token == '>@':
+                if inside_no_esc_literal:
+                    inside_no_esc_literal = False
+                else:
+                    raise Exception(
+                        'unmatched no-escape literal terminator: >@')
+            else:
+                cell += token
+
+        cells.append(cell)
+
+        if inside_esc_literal:
+            raise Exception('unclosed escape literal: @@')
+        if inside_no_esc_literal:
+            raise Exception('unclosed no-escape literal: @<')
+
+        return cells
+
     def close(self, output_stream):
         output_stream.write('<table class="wiki-content-table">\n')
         inside_cell = False
@@ -950,7 +1027,7 @@ class Table(Block):
                 if inside_cell:
                     raise Exception('unterminated cell')
                 row = md.group('row')
-                cells = row.split('||')
+                cells = self.row_to_cells(row)
                 output_stream.write('<tr>\n')
                 self.print_cells(output_stream, None, cells, None)
                 output_stream.write('</tr>\n')
@@ -961,7 +1038,7 @@ class Table(Block):
                 if inside_cell:
                     raise Exception('unterminated cell')
                 row = md.group('row')
-                cells = row.split('||')
+                cells = self.row_to_cells(row)
                 last_cell = cells.pop()
                 output_stream.write('<tr>\n')
                 self.print_cells(output_stream, None, cells, last_cell)
@@ -972,14 +1049,14 @@ class Table(Block):
                 if not inside_cell:
                     raise Exception('not inside cell')
                 row = md.group('row')
-                cells = row.split('||')
+                cells = self.row_to_cells(row)
                 first_cell = cells.pop(0)
                 self.print_cells(output_stream, first_cell, cells, None)
                 output_stream.write('</tr>\n')
                 inside_cell = False
                 continue
             row = content
-            cells = row.split('||')
+            cells = self.row_to_cells(row)
             if len(cells) == 1:
                 lone_cell = cells.pop()
                 self.print_cells(output_stream, None, [], None, lone_cell)
