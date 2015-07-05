@@ -815,8 +815,9 @@ def analyze_line(line, current_block):
 
 
 class Block(object):
-    def __init__(self, line, block_type=None, match=None):
+    def __init__(self, line, lineno, block_type=None, match=None):
         self.lines = [line]
+        self.linenos = [lineno]
         if block_type:
             self.block_type = block_type
             self.matches = [match]
@@ -825,8 +826,10 @@ class Block(object):
             self.matches.append(match)
         self.tag = self._tag()
 
-    def add_line(self, line, block_type=None, match=None, continued=False):
+    def add_line(self, line, lineno,
+                 block_type=None, match=None, continued=False):
         self.lines.append(line)
+        self.linenos.append(lineno)
         if block_type is None:
             block_type, match = analyze_line(line, None)
         if not continued and \
@@ -864,8 +867,8 @@ class Block(object):
 class Header(Block):
     next_toc_number = 0
 
-    def __init__(self, line, match):
-        Block.__init__(self, line, BLOCK_TYPE_HN, match)
+    def __init__(self, line, lineno, match):
+        Block.__init__(self, line, lineno, BLOCK_TYPE_HN, match)
         self.toc_number = Header.next_toc_number
         Header.next_toc_number += 1
 
@@ -882,16 +885,16 @@ class Header(Block):
 
 
 class HorizontalRule(Block):
-    def __init__(self, line, match):
-        Block.__init__(self, line, BLOCK_TYPE_HR, match)
+    def __init__(self, line, lineno, match):
+        Block.__init__(self, line, lineno, BLOCK_TYPE_HR, match)
 
     def close(self, output_stream):
         output_stream.write('<hr />\n')
 
 
 class Table(Block):
-    def __init__(self, line, match):
-        Block.__init__(self, line, BLOCK_TYPE_TABLE, match)
+    def __init__(self, line, lineno, match):
+        Block.__init__(self, line, lineno, BLOCK_TYPE_TABLE, match)
         self.cell_type = 'td'
         self.colspan = 1
         self.text_align = None
@@ -1029,61 +1032,75 @@ class Table(Block):
     def close(self, output_stream):
         output_stream.write('<table class="wiki-content-table">\n')
         inside_cell = False
-        for match in self.matches:
+        for i, match in enumerate(self.matches):
             try:
                 content = match.group('content')
             except IndexError:
                 content = ''
-            md = RX_FULL_ROW.search(content)
-            if md:
-                if inside_cell:
-                    raise Exception('unterminated cell')
-                row = md.group('row')
+            try:
+                md = RX_FULL_ROW.search(content)
+                if md:
+                    if inside_cell:
+                        raise Exception('unterminated cell')
+                    row = md.group('row')
+                    cells = self.row_to_cells(row)
+                    output_stream.write('<tr>\n')
+                    self.print_cells(output_stream, None, cells, None)
+                    output_stream.write('</tr>\n')
+                    inside_cell = False
+                    continue
+                md = RX_START_ROW.search(content)
+                if md:
+                    if inside_cell:
+                        raise Exception('unterminated cell')
+                    row = md.group('row')
+                    cells = self.row_to_cells(row)
+                    last_cell = cells.pop()
+                    output_stream.write('<tr>\n')
+                    self.print_cells(output_stream, None, cells, last_cell)
+                    inside_cell = True
+                    continue
+                md = RX_END_ROW.search(content)
+                if md:
+                    if not inside_cell:
+                        raise Exception('not inside cell')
+                    row = md.group('row')
+                    cells = self.row_to_cells(row)
+                    first_cell = cells.pop(0)
+                    self.print_cells(output_stream, first_cell, cells, None)
+                    output_stream.write('</tr>\n')
+                    inside_cell = False
+                    continue
+                row = content
                 cells = self.row_to_cells(row)
-                output_stream.write('<tr>\n')
-                self.print_cells(output_stream, None, cells, None)
-                output_stream.write('</tr>\n')
-                inside_cell = False
-                continue
-            md = RX_START_ROW.search(content)
-            if md:
-                if inside_cell:
-                    raise Exception('unterminated cell')
-                row = md.group('row')
-                cells = self.row_to_cells(row)
-                last_cell = cells.pop()
-                output_stream.write('<tr>\n')
-                self.print_cells(output_stream, None, cells, last_cell)
+                if len(cells) == 1:
+                    lone_cell = cells.pop()
+                    self.print_cells(output_stream, None, [], None, lone_cell)
+                else:
+                    first_cell = cells.pop(0)
+                    last_cell = cells.pop()
+                    self.print_cells(output_stream,
+                                     first_cell,
+                                     cells,
+                                     last_cell)
                 inside_cell = True
-                continue
-            md = RX_END_ROW.search(content)
-            if md:
-                if not inside_cell:
-                    raise Exception('not inside cell')
-                row = md.group('row')
-                cells = self.row_to_cells(row)
-                first_cell = cells.pop(0)
-                self.print_cells(output_stream, first_cell, cells, None)
-                output_stream.write('</tr>\n')
-                inside_cell = False
-                continue
-            row = content
-            cells = self.row_to_cells(row)
-            if len(cells) == 1:
-                lone_cell = cells.pop()
-                self.print_cells(output_stream, None, [], None, lone_cell)
-            else:
-                first_cell = cells.pop(0)
-                last_cell = cells.pop()
-                self.print_cells(output_stream, first_cell, cells, last_cell)
-            inside_cell = True
+            except Exception:
+                if i in self.linenos:
+                    sys.stderr.write(
+                        "ERROR line number at source: {}\n".format(
+                            self.linenos[i]))
+                raise
         output_stream.write('</table>\n')
 
 
 class List(Block):
-    def __init__(self, line, match):
+    def __init__(self, line, lineno, match):
         self.raw_tag = match.group('raw_tag')
-        Block.__init__(self, line, self.raw_tag_to_tag(self.raw_tag), match)
+        Block.__init__(self,
+                       line,
+                       lineno,
+                       self.raw_tag_to_tag(self.raw_tag),
+                       match)
         self.opened_lists = None
         self.inside_line = None
 
@@ -1160,18 +1177,18 @@ class List(Block):
 
 
 class Empty(Block):
-    def __init__(self, line, match):
-        Block.__init__(self, line, BLOCK_TYPE_EMPTY, match)
+    def __init__(self, line, lineno, match):
+        Block.__init__(self, line, lineno, BLOCK_TYPE_EMPTY, match)
 
     def close(self, output_stream):
         pass
 
 
 class Code(Block):
-    def __init__(self, line, match):
+    def __init__(self, line, lineno, match):
         self.input_nesting_level = 0
         self.output_nesting_level = 0
-        Block.__init__(self, line, BLOCK_TYPE_CODE, match)
+        Block.__init__(self, line, lineno, BLOCK_TYPE_CODE, match)
 
     def write_open_tag(self, output_stream):
         output_stream.write('<div class="code">\n')
@@ -1208,10 +1225,10 @@ class Code(Block):
 class Math(Block):
     next_eqn_number = 0
 
-    def __init__(self, line, match):
+    def __init__(self, line, lineno, match):
         self.input_nesting_level = 0
         self.output_nesting_level = 0
-        Block.__init__(self, line, BLOCK_TYPE_MATH, match)
+        Block.__init__(self, line, lineno, BLOCK_TYPE_MATH, match)
         Math.next_eqn_number += 1
         self.eqn_number = Math.next_eqn_number
 
@@ -1252,8 +1269,8 @@ class Math(Block):
 
 
 class Paragraph(Block):
-    def __init__(self, line, match):
-        Block.__init__(self, line, BLOCK_TYPE_P, match)
+    def __init__(self, line, lineno, match):
+        Block.__init__(self, line, lineno, BLOCK_TYPE_P, match)
 
     def get_content(self, parser):
         for i, match in enumerate(self.matches):
@@ -1336,27 +1353,27 @@ class BlockParser(object):
             self.current_block.close(self.output_stream)
         self.current_block = None
 
-    def block_factory(self, line, block_type=None, match=None):
+    def block_factory(self, lineno, line, block_type=None, match=None):
         if block_type == BLOCK_TYPE_UL:
-            return List(line, match)
+            return List(line, lineno, match)
         elif block_type == BLOCK_TYPE_OL:
-            return List(line, match)
+            return List(line, lineno, match)
         elif block_type == BLOCK_TYPE_EMPTY:
-            return Empty(line, match)
+            return Empty(line, lineno, match)
         elif block_type == BLOCK_TYPE_HR:
-            return HorizontalRule(line, match)
+            return HorizontalRule(line, lineno, match)
         elif block_type == BLOCK_TYPE_CODE:
-            return Code(line, match)
+            return Code(line, lineno, match)
         elif block_type == BLOCK_TYPE_MATH:
-            return Math(line, match)
+            return Math(line, lineno, match)
         elif block_type == BLOCK_TYPE_P:
-            return Paragraph(line, match)
+            return Paragraph(line, lineno, match)
         elif block_type == BLOCK_TYPE_HN:
-            return Header(line, match)
+            return Header(line, lineno, match)
         elif block_type == BLOCK_TYPE_TABLE:
-            return Table(line, match)
+            return Table(line, lineno, match)
         else:
-            return Block(line, block_type, match)
+            return Block(line, lineno, block_type, match)
 
     def adjust_blockquote_level(self, line):
         md = RX_BLOCKQUOTE.search(line)
@@ -1459,7 +1476,7 @@ class BlockParser(object):
 
     def process_lines(self):
         try:
-            for i, line in enumerate(self.input_stream, start=1):
+            for lineno, line in enumerate(self.input_stream, start=1):
                 line = line.rstrip()
                 line = self.adjust_blockquote_level(line)
 
@@ -1475,19 +1492,25 @@ class BlockParser(object):
 
                 if not self.current_block:
                     self.current_block = self.block_factory(line,
+                                                            lineno,
                                                             block_type,
                                                             match)
                 elif self.continued_line:
                     self.current_block.add_line(line,
+                                                lineno,
                                                 block_type,
                                                 match,
                                                 continued=True)
                 elif (block_type == self.current_block.block_type and
                       self.current_block.multiline_type):
-                    self.current_block.add_line(line, block_type, match)
+                    self.current_block.add_line(line,
+                                                lineno,
+                                                block_type,
+                                                match)
                 else:
                     self.close_current_block()
                     self.current_block = self.block_factory(line,
+                                                            lineno,
                                                             block_type,
                                                             match)
 
@@ -1499,7 +1522,7 @@ class BlockParser(object):
             self.close_current_block()
             self.adjust_blockquote_level('')
         except:
-            sys.stderr.write("ERROR at line {}: {}\n".format(i, line))
+            sys.stderr.write("ERROR at line {}: {}\n".format(lineno, line))
             raise
 
 
