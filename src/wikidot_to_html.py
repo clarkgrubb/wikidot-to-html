@@ -42,7 +42,7 @@ import cgi
 import pprint
 import re
 import sys
-import traceback
+# import traceback
 
 PP = pprint.PrettyPrinter(stream=sys.stderr)
 
@@ -922,7 +922,7 @@ class Table(Block):
     def print_cells(self, output_stream, first_cell, cells, last_cell,
                     lone_cell=None):
         self.colspan = 1
-        if lone_cell:
+        if lone_cell is not None:
             self.print_middle_of_cell(lone_cell)
         if first_cell is not None:
             self.print_end_of_cell(output_stream, first_cell)
