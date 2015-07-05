@@ -6,13 +6,11 @@ output stream.
 
 ## Markup
 
-  SPECIAL BLOCK ELEMENTS:
+  BLOCK ELEMENTS:
     <blockquote>: >
     <div>: [[div id="..." class="..." style="..." data-...="..."]]
     <pre><code>: [[code type="..."]]
     <div class="math-equation" id="equation-...">: [[math]]
-
-  BLOCK ELEMENTS:
     <ul>: *
     <ol>: #
     <hn>: +
@@ -36,6 +34,15 @@ output stream.
     <br>: _
     escape literal: @@
     no escape literal: @< >@
+
+## Architecture
+
+The *BlockParser* iterates through input by line and assigns each line
+to an object of type *Block*.  If a *Block* object has inline content,
+*lex* is used to tokenize the content and *InlineParser* is used to
+convert the token stream to a tree of *Node* and *Text* objects.
+*Block*s are rendered by calling the *close* method.  *Node*s and
+*Text* are rendered by calling the *__str__* method.
 
 ## Debugging
 
@@ -154,7 +161,8 @@ RX_SINGLE_BRACKET = re.compile(
     r'^(?P<token>\[(?P<head>[^\]\s]+)[^\]]*\])(?P<text>.*)$')
 RX_DOUBLED_CHAR = re.compile(
     r'^(//|\*\*|\{\{|\}\}|--|__|,,|\^\^|@@|@<|>@|\|\|)')
-RX_COLOR_HEAD = re.compile(r'^(?P<token>##[a-zA-Z0-9 ]+\|)(?P<text>.*)$')
+RX_COLOR_HEAD = re.compile(r'^(?P<token>##[a-zA-Z][a-zA-Z0-9 ]*\|)'
+                           '(?P<text>.*)$')
 RX_LEAD_WHITESPACE = re.compile(r'^(?P<token>\s+)(?P<text>.*)$')
 RX_URL_FRAGMENT = re.compile(r'^#[a-zA-Z][a-zA-Z0-9-]*$')
 RX_URL = re.compile(
