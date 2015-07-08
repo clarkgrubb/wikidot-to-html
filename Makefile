@@ -27,7 +27,7 @@ test: test.table test.table3 test.table4 test.table5 test.table6 test.table7
 test: test.table8 test.table9 test.whitespace
 
 .PHONY: tests.failing
-tests.failing: test.code5 test.literal2 test.literal3 test.literal4
+tests.failing: test.code5 test.literal2 test.literal3 test.literal4 test.literal5
 
 .PHONY: tests.optional
 tests.optional: test.table2
