@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
 Reads lines of input containing Wikidot-style markup
-from an input stream and writes the corresponding HTML to an
+ an input stream and writes the corresponding HTML to an
 output stream.
 
 ## Markup
@@ -1085,7 +1085,7 @@ class Table(Block):
                                      last_cell)
                 inside_cell = True
             except Exception:
-                if i in self.linenos:
+                if i < len(self.linenos):
                     sys.stderr.write(
                         "ERROR line number at source: {}\n".format(
                             self.linenos[i]))
