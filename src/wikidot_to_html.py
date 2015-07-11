@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
 Reads lines of input containing Wikidot-style markup
- an input stream and writes the corresponding HTML to an
+from an input stream and writes the corresponding HTML to an
 output stream.
 
 ## Markup
@@ -32,8 +32,8 @@ output stream.
     <a href="...">: [#
     <a name="...">: [[# ...]]
     <br>: _
-    escape literal: @@
-    no escape literal: @< >@
+    literal: @@
+    html entity literal: @< >@
 
 ## Architecture
 
@@ -61,7 +61,7 @@ convert the token stream to a tree of *Node* and *Text* objects.
     problem.
 
     To find out how the lexer is splitting the input into tokens, use
-    PP.print(tokens) before lex() returns.
+    PP.print(tokens) before str_lex() or token_lex() returns.
 
     In InlineParser.parse(), use debug statements to figure out which
     clause is getting triggered for each token.
@@ -160,8 +160,9 @@ RX_DOUBLE_BRACKET = re.compile(
     r'^(?P<token>\[\[[^\]]+\]\])(?P<text>.*)$')
 RX_SINGLE_BRACKET = re.compile(
     r'^(?P<token>\[(?P<head>[^\]\s]+)[^\]]*\])(?P<text>.*)$')
+RX_ESCAPE_CHAR = re.compile(r'@|<|>')
 RX_DOUBLED_CHAR = re.compile(
-    r'^(//|\*\*|\{\{|\}\}|--|__|,,|\^\^|@@|@<|>@|\|\|)')
+    r'^(//|\*\*|\{\{|\}\}|--|__|,,|\^\^|\|\|)')
 RX_COLOR_HEAD = re.compile(r'^(?P<token>##[a-zA-Z][a-zA-Z0-9 ]*\|)'
                            '(?P<text>.*)$')
 RX_LEAD_WHITESPACE = re.compile(r'^(?P<token>\s+)(?P<text>.*)$')
@@ -304,7 +305,7 @@ class Size(Node):
         Node.__init__(self, raw_tag, tag, 'span')
 
 
-class EscapeLiteral(Node):
+class Literal(Node):
     def __init__(self, raw_tag, tag):
         Node.__init__(self, raw_tag, tag, 'span')
 
@@ -316,7 +317,7 @@ class EscapeLiteral(Node):
                                     self.close_tag)
 
 
-class NoEscapeLiteral(Node):
+class HTMLEntityLiteral(Node):
     def __init__(self, raw_tag, tag):
         Node.__init__(self, raw_tag, tag, 'span')
 
@@ -396,7 +397,7 @@ class LineBreak(Node):
 LINE_BREAK = LineBreak()
 
 
-def lex(text):
+def str_lex(text):
     tokens = []
     prefix_and_text = text
     prefix = ''
@@ -473,6 +474,13 @@ def lex(text):
             text = prefix_and_text
             text_i = 0
             continue
+        md = RX_ESCAPE_CHAR.search(text)
+        if md:
+            tokens.append(text[0:1])
+            prefix_and_text = text[1:]
+            text = prefix_and_text
+            text_i = 0
+            continue
         md = RX_DOUBLED_CHAR.search(text)
         if md:
             if prefix:
@@ -497,6 +505,74 @@ def lex(text):
 
     if prefix:
         tokens.append(prefix)
+
+    return tokens
+
+
+class Token(object):
+    pass
+
+
+class LiteralStartToken(Token):
+    pass
+
+
+class LiteralEndToken(Token):
+    pass
+
+
+class HTMLEntityLiteralStartToken(Token):
+    pass
+
+
+class HTMLEntityLiteralEndToken(Token):
+    pass
+
+LITERAL_START_TOKEN = LiteralStartToken()
+LITERAL_END_TOKEN = LiteralEndToken()
+HTML_ENTITY_LITERAL_START_TOKEN = HTMLEntityLiteralStartToken()
+HTML_ENTITY_LITERAL_END_TOKEN = HTMLEntityLiteralEndToken()
+
+
+def token_lex(text):
+    last_idx = -1
+    last_html_entity_idx = -1
+    prev_s = ''
+    str_tokens = str_lex(text)
+    tokens = []
+    for s in str_tokens:
+        if prev_s + s == '@@':
+            if last_idx > -1:
+                tokens.append(LITERAL_END_TOKEN)
+                tokens[last_idx] = LITERAL_START_TOKEN
+                last_idx = -1
+            else:
+                tokens.append('@@')
+                last_idx = len(tokens) - 1
+            prev_s = ''
+        elif prev_s + s == '@<':
+            tokens.append('@<')
+            if last_html_entity_idx == -1:
+                last_html_entity_idx = len(tokens) - 1
+            prev_s = ''
+        elif prev_s + s == '>@':
+            if last_html_entity_idx > -1:
+                tokens[last_html_entity_idx] = HTML_ENTITY_LITERAL_START_TOKEN
+                last_html_entity_idx = -1
+                tokens.append(HTML_ENTITY_LITERAL_END_TOKEN)
+                prev_s = ''
+            else:
+                tokens.append('>')
+                prev_s = '@'
+        elif s == '@' or s == '>':
+            if prev_s:
+                tokens.append(prev_s)
+            prev_s = s
+        else:
+            if prev_s:
+                tokens.append(prev_s)
+                prev_s = ''
+            tokens.append(s)
 
     return tokens
 
@@ -538,9 +614,9 @@ class InlineParser(object):
             self.subscript = value
         elif cls == Superscript:
             self.superscript = value
-        elif cls == EscapeLiteral:
+        elif cls == Literal:
             self.escape_literal = value
-        elif cls == NoEscapeLiteral:
+        elif cls == HTMLEntityLiteral:
             self.no_escape_literal = value
         elif cls == Span:
             if value:
@@ -658,26 +734,33 @@ class InlineParser(object):
                     self.comment = False
             elif token == '[!--':
                 self.comment = True
-            elif token == '@@' and self.escape_literal:
+            elif isinstance(token, LiteralEndToken) and self.escape_literal:
                 self.escape_literal = False
-                self.remove_node(EscapeLiteral)
-            elif token == '>@' and self.no_escape_literal:
+                self.remove_node(Literal)
+            elif isinstance(token, LiteralStartToken):
+                self.escape_literal = True
+                self.add_node(Literal(
+                    '@@',
+                    'span style="white-space: pre-wrap;"'))
+            elif isinstance(token, HTMLEntityLiteralEndToken) \
+                    and self.no_escape_literal:
                 self.no_escape_literal = False
-                self.remove_node(NoEscapeLiteral)
+                self.remove_node(HTMLEntityLiteral)
+            elif isinstance(token, HTMLEntityLiteralEndToken):
+                self.add_text(cgi.escape('>@'))
             elif self.escape_literal:
                 self.add_text(cgi.escape(token))
             elif self.no_escape_literal:
                 self.add_text(token)
-            elif token == '@@':
-                self.escape_literal = True
-                self.add_node(EscapeLiteral(
-                    '@@',
-                    'span style="white-space: pre-wrap;"'))
-            elif token == '@<':
+            elif isinstance(token, HTMLEntityLiteralStartToken):
                 self.no_escape_literal = True
-                self.add_node(NoEscapeLiteral(
+                self.add_node(HTMLEntityLiteral(
                     '@@',
                     'span style="white-space: pre-wrap;"'))
+            elif not isinstance(token, str):
+                raise Exception('expected token to be a string: ' +
+                                str(type(token)) + ': ' +
+                                str(token))
             elif RX_WHITESPACE.match(token):
                 self.add_text(' ')
             elif token.startswith('[[span'):
@@ -851,7 +934,7 @@ class Block(object):
 
     def write_content(self, parser, output_stream):
         for match in self.matches:
-            parser.parse(lex(match.group('content')))
+            parser.parse(token_lex(match.group('content')))
             output_stream.write(str(parser.top_node))
 
     def write_close_tag(self, output_stream):
@@ -905,7 +988,7 @@ class Table(Block):
         self.parser = InlineParser()
 
     def add_cell_content(self, content):
-        self.parser.parse(lex(content))
+        self.parser.parse(token_lex(content))
 
     def add_line_break(self):
         self.parser.add_text(LINE_BREAK)
@@ -1150,7 +1233,7 @@ class List(Block):
                           self.raw_tag_to_tag(match.group('raw_tag')),
                           len(match.group('indent'))]
             content = match.group('content')
-            parser.parse(lex(content))
+            parser.parse(token_lex(content))
             if match.group('br'):
                 parser.add_text(LINE_BREAK)
             else:
@@ -1274,7 +1357,7 @@ class Paragraph(Block):
 
     def get_content(self, parser):
         for i, match in enumerate(self.matches):
-            parser.parse(lex(match.group('content')))
+            parser.parse(token_lex(match.group('content')))
             if i < len(self.matches) - 1:
                 parser.add_text(LINE_BREAK)
 

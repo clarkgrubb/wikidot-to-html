@@ -21,13 +21,14 @@ test: test.blocks test.code test.code2 test.code3 test.code4
 test: test.comment test.div test.div2 test.font test.font2
 test: test.headers test.html-entities test.image test.links test.links2
 test: test.lists test.lists1 test.lists2 test.lists4
-test: test.literal test.math test.math2 test.math4
+test: test.literal test.literal2 test.literal3
+test: test.math test.math2 test.math4
 test: test.p test.phrase test.span
 test: test.table test.table3 test.table4 test.table5 test.table6 test.table7
 test: test.table8 test.table9 test.whitespace
 
 .PHONY: tests.failing
-tests.failing: test.code5 test.literal2 test.literal3 test.literal4 test.literal5
+tests.failing: test.code5 test.literal4 test.literal5
 
 .PHONY: tests.optional
 tests.optional: test.table2
