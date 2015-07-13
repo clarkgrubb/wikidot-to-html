@@ -78,6 +78,12 @@ convert the token stream to a tree of *Node* and *Text* objects.
     derived classes to inspect self.lines or self.matches if the Block
     object is not rendered correctly.
 
+## Design Defects
+
+ * BLOCK_TYPE_* constants unnecessary?  Just use object types
+ * token_lex sometimes returns token objects, sometimes strings
+ * row_to_cells contains logic also in the lexers
+
 """
 
 import cgi
@@ -183,7 +189,7 @@ RX_END_ROW = re.compile(r'^(?P<row>.*)\|\|$')
 RX_TAGGED_CELL = re.compile(r'^(?P<tag>~|<|=|>)\s+(?P<content>.*)$')
 RX_EMPTY_PARAGRAPH = re.compile(r'^(<br />|\s)*$', re.M)
 RX_BLANK_LINE = re.compile(r'^\s*$')
-RX_TABLE_CELL_LEXER = re.compile(r'(\|\||@@|@<|>@)')
+RX_TABLE_CELL_LEXER = re.compile(r'(\|\||@|<|>)')
 
 
 class ClosureNode(object):
@@ -534,21 +540,38 @@ HTML_ENTITY_LITERAL_START_TOKEN = HTMLEntityLiteralStartToken()
 HTML_ENTITY_LITERAL_END_TOKEN = HTMLEntityLiteralEndToken()
 
 
+def count_literal_escapes(str_tokens):
+    prev_s = ''
+    literal_cnt = 0
+    for s in str_tokens:
+        if prev_s + s == '@@':
+            literal_cnt += 1
+            prev_s = ''
+        else:
+            prev_s = s
+
+    return literal_cnt
+
+
 def token_lex(text):
     last_idx = -1
     last_html_entity_idx = -1
     prev_s = ''
     str_tokens = str_lex(text)
     tokens = []
+    remaining_literal_cnt = count_literal_escapes(str_tokens)
+
     for s in str_tokens:
-        if prev_s + s == '@@':
-            if last_idx > -1:
-                tokens.append(LITERAL_END_TOKEN)
-                tokens[last_idx] = LITERAL_START_TOKEN
-                last_idx = -1
-            else:
-                tokens.append('@@')
-                last_idx = len(tokens) - 1
+        if prev_s + s == '@@' and last_idx > -1:
+            remaining_literal_cnt -= 1
+            tokens.append(LITERAL_END_TOKEN)
+            tokens[last_idx] = LITERAL_START_TOKEN
+            last_idx = -1
+            prev_s = ''
+        elif prev_s + s == '@@' and remaining_literal_cnt > 1:
+            remaining_literal_cnt -= 1
+            tokens.append('@@')
+            last_idx = len(tokens) - 1
             prev_s = ''
         elif prev_s + s == '@<':
             tokens.append('@<')
@@ -1069,46 +1092,45 @@ class Table(Block):
             self.print_start_of_cell(last_cell)
 
     def row_to_cells(self, row):
+        return row.split('||')
+
+    def row_to_cells_(self, row):
+        tokens = row.split(RX_TABLE_CELL_LEXER)
         cells = []
-        cell = ''
-        inside_esc_literal = False
-        inside_no_esc_literal = False
-        tokens = re.split(RX_TABLE_CELL_LEXER, row)
-        for token in tokens:
-            if token == '||':
-                if inside_esc_literal:
-                    cell += '||'
+        current_cell = ''
+        prev_s = ''
+        literal_contents = None
+        html_entity_literal_contents = None
+
+        for s in tokens:
+            if prev_s + s == '@@':
+                if literal_contents is not None:
+                    current_cell += literal_contents
+                    literal_contents = None
+                elif html_entity_literal_contents is not None:
+                    html_entity_literal_contents += '@@'
                 else:
-                    cells.append(cell)
-                    cell = ''
-            elif token == '@@':
-                if inside_no_esc_literal:
-                    cell += token
+                    pass
+            elif prev_s + s == '@<':
+                pass
+            elif prev_s + s == '>@':
+                pass
+            elif s == '@' or s == '>':
+                pass
+            elif s == '||':
+                if literal_contents or html_entity_literal_contents:
+                    current_cell += '||'
                 else:
-                    inside_esc_literal = (not inside_esc_literal)
-                    cell += token
-            elif token == '@<':
-                if inside_no_esc_literal:
-                    raise Exception('nested no-escape literal: @<')
-                else:
-                    inside_no_esc_literal = True
-                    cell += token
-            elif token == '>@':
-                if inside_no_esc_literal:
-                    inside_no_esc_literal = False
-                    cell += token
-                else:
-                    raise Exception(
-                        'unmatched no-escape literal terminator: >@')
+                    cells.append(current_cell)
+                    current_cell = ''
             else:
-                cell += token
+                if prev_s:
+                    current_cell += prev_s
+                    prev_s = ''
+                current_cell += s
 
-        cells.append(cell)
-
-        if inside_esc_literal:
-            raise Exception('unclosed escape literal: @@')
-        if inside_no_esc_literal:
-            raise Exception('unclosed no-escape literal: @<')
+        if current_cell:
+            cells.append(current_cell)
 
         return cells
 
