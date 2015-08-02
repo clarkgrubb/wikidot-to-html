@@ -16,27 +16,28 @@ test.%: | output
 	diff test/expected.output/$*.html output/$*.html
 
 .PHONY: test
-test: test.blockquote test.blockquote2 test.blockquote3 test.blockquote4
-test: test.blocks test.code test.code2 test.code3 test.code4
-test: test.comment test.div test.div2 test.font test.font2
-test: test.headers test.html-entities test.image test.links test.links2
-test: test.lists test.lists1 test.lists2 test.lists4
-test: test.literal test.literal2 test.literal3 test.literal4 test.literal5
-test: test.math test.math2 test.math4
-test: test.p test.phrase test.span
-test: test.table test.table3 test.table4 test.table5 test.table6
-test: test.table8 test.table9 test.whitespace
+test: test-passing
 
-.PHONY: tests.failing
-tests.failing: test.code5 test.literal4 test.literal6 test.table7
+.PHONY: test-passing
+test-passing: test.blockquote test.blockquote2 test.blockquote3 test.blockquote4
+test-passing: test.blocks test.code test.code2 test.code3 test.code4
+test.passing: test.comment
+test.passing: test.div test.div2
+test-passing: test.font test.font2 test.headers
+test-passing: test.html-entities test.image test.links test.links2 test.literal
+test-passing: test.lists test.lists1 test.lists2 test.lists4
+test-passing: test.math test.math2 test.math4
+test-passing: test.p test.phrase test.span
+test-passing: test.table test.table3 test.table4 test.table5 test.table6 test.table8 test.table9
+test-passing: test.whitespace
 
-.PHONY: tests.optional
-tests.optional: test.table2
-tests.optional: test.math3
-tests.optional: test.non-ascii
-tests.optional: test.comment2
-tests.optional: test.list3
-tests.optional: test.smart-quotes test.smart-quotes2
+.PHONY: test-failing
+test-failing: test.code5
+test-failing: test.comment2
+test-failing: test.lists3
+test-failing: test.math3 test.non-ascii
+test-failing: test.smart-quotes test.smart-quotes2
+test-failing: test.table2 test.table7
 
 .PHONY: all
 all:
