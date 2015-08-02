@@ -20,7 +20,7 @@ test: test-passing
 
 .PHONY: test-passing
 test-passing: test.blockquote test.blockquote2 test.blockquote3 test.blockquote4
-test-passing: test.blocks test.code test.code2 test.code3 test.code4
+test-passing: test.blocks test.code test.code2 test.code3 test.code4 test.code5
 test.passing: test.comment
 test.passing: test.div test.div2
 test-passing: test.font test.font2 test.headers
@@ -32,7 +32,6 @@ test-passing: test.table test.table3 test.table4 test.table5 test.table6 test.ta
 test-passing: test.whitespace
 
 .PHONY: test-failing
-test-failing: test.code5
 test-failing: test.comment2
 test-failing: test.lists3
 test-failing: test.math3 test.non-ascii

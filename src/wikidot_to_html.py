@@ -1481,6 +1481,9 @@ class BlockParser(object):
             return Block(line, lineno, block_type, match)
 
     def adjust_blockquote_level(self, line):
+        if isinstance(self.current_block, Code):
+            return line
+
         md = RX_BLOCKQUOTE.search(line)
         if md:
             new_bq_level = len(md.group('greater_than_signs'))
