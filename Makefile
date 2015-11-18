@@ -20,22 +20,30 @@ test: test-passing
 
 .PHONY: test-passing
 test-passing: test.blockquote test.blockquote2 test.blockquote3 test.blockquote4
-test-passing: test.blocks test.code test.code2 test.code3 test.code4 test.code5
+test-passing: test.blocks
+test-passing: test.code test.code2 test.code3 test.code4 test.code5
 test.passing: test.comment
 test.passing: test.div test.div2
-test-passing: test.font test.font2 test.headers
-test-passing: test.html-entities test.image test.links test.links2
-test-passing: test.literal test.literal2 test.literal3 test.literal4 test.literal5
+test-passing: test.font test.font2
+test-passing: test.headers
+test-passing: test.html-entities
+test-passing: test.image
+test-passing: test.links test.links2
 test-passing: test.lists test.lists1 test.lists2 test.lists4
+test-passing: test.literal test.literal2 test.literal3 test.literal4 test.literal5
 test-passing: test.math test.math2 test.math4
-test-passing: test.p test.phrase test.span
+test-passing: test.p
+test-passing: test.phrase
+test-passing: test.span
 test-passing: test.table test.table3 test.table4 test.table5 test.table6 test.table8 test.table9
 test-passing: test.whitespace
 
 .PHONY: test-failing
 test-failing: test.comment2
 test-failing: test.lists3
-test-failing: test.math3 test.non-ascii
+test-failing: test.literal6
+test-failing: test.math3
+test-failing: test.non-ascii
 test-failing: test.smart-quotes test.smart-quotes2
 test-failing: test.table2 test.table7
 
