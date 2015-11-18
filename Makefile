@@ -24,7 +24,8 @@ test-passing: test.blocks test.code test.code2 test.code3 test.code4 test.code5
 test.passing: test.comment
 test.passing: test.div test.div2
 test-passing: test.font test.font2 test.headers
-test-passing: test.html-entities test.image test.links test.links2 test.literal
+test-passing: test.html-entities test.image test.links test.links2
+test-passing: test.literal test.literal2 test.literal3 test.literal4 test.literal5
 test-passing: test.lists test.lists1 test.lists2 test.lists4
 test-passing: test.math test.math2 test.math4
 test-passing: test.p test.phrase test.span
