@@ -39,13 +39,19 @@ test-passing: test.table test.table3 test.table4 test.table5 test.table6 test.ta
 test-passing: test.whitespace
 
 .PHONY: test-failing
-test-failing: test.comment2
-test-failing: test.lists3
 test-failing: test.literal6
-test-failing: test.math3
-test-failing: test.non-ascii
-test-failing: test.smart-quotes test.smart-quotes2
 test-failing: test.table2 test.table7
+
+.PHONY: test-optional
+# nested comment:
+test-optional: test.comment2
+# [[ul]] style lists:
+test-optional: test.lists3
+# inline math: [[$ \infty $]]
+test-optional: test.math3
+# ndash, mdash, ellipsis, guillemet, goosefeet
+test-optional: test.non-ascii
+test-optional: test.smart-quotes test.smart-quotes2
 
 .PHONY: all
 all:
