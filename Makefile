@@ -70,3 +70,6 @@ pycodestyle: ve
 .PHONY: pylint
 pylint: ve
 	. ve/bin/activate && find src -name '*.py' | xargs pylint -d missing-docstring
+
+.PHONY: check
+check: pycodestyle pylint test
