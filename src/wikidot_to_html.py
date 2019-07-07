@@ -385,10 +385,9 @@ class Anchor(Text):
 
 class Image(Text):
     ATTRS = ['title', 'width', 'height', 'style', 'class', 'size']
-    # FIXME: global state
-    image_prefix = ''
 
     def __init__(self, wikidot, raw_tag, src, attrs, alignment):
+        self.wikidot = wikidot
         Text.__init__(self,
                       wikidot,
                       raw_tag,
@@ -398,7 +397,7 @@ class Image(Text):
         self.alignemnt = alignment
 
     def __str__(self):
-        s = '<img src="{}{}"'.format(Image.image_prefix, self.src)
+        s = '<img src="{}{}"'.format(self.wikidot.image_prefix, self.src)
         for attr in Image.ATTRS:
             value = self.attrs.get(attr, None)
             if value:
@@ -1036,14 +1035,11 @@ class TOC:
 
 
 class Header(Block):
-    # FIXME: eliminate this global state
-    next_toc_number = 0
-
     def __init__(self, wikidot, line, lineno, match):
         Block.__init__(self, wikidot, line, lineno, BLOCK_TYPE_HN, match)
         self.wikidot = wikidot
-        self.toc_number = Header.next_toc_number
-        Header.next_toc_number += 1
+        self.toc_number = self.wikidot.next_toc_number
+        self.wikidot.next_toc_number += 1
         self.wikidot.toc.add_header(self)
 
     def write_open_tag(self, output_stream):
@@ -1399,15 +1395,12 @@ class Code(Block):
 
 
 class Math(Block):
-    # FIXME: global state
-    next_eqn_number = 0
-
     def __init__(self, wikidot, line, lineno, match):
         self.input_nesting_level = 0
         self.output_nesting_level = 0
         Block.__init__(self, wikidot, line, lineno, BLOCK_TYPE_MATH, match)
-        Math.next_eqn_number += 1
-        self.eqn_number = Math.next_eqn_number
+        self.eqn_number = self.wikidot.next_eqn_number
+        self.wikidot.next_eqn_number += 1
 
     def write_open_tag(self, output_stream):
         output_stream.write(
@@ -1713,9 +1706,8 @@ class BlockParser:
     def process_lines(self, output_stream):
         self._process_lines(NullOutputStream())
 
-        # FIXME: eliminate global state
-        Header.next_toc_number = 0
-        Math.next_eqn_number = 0
+        self.wikidot.next_toc_number = 0
+        self.wikidot.next_eqn_number = 1
         self.toc = self.wikidot.toc
         self.wikidot.toc = TOC(self.wikidot)
 
@@ -1723,9 +1715,13 @@ class BlockParser:
 
 
 class Wikidot:
-    def __init__(self):
+    def __init__(self, args):
+        self.image_prefix = args.image_prefix
+        self.link_prefix = args.link_prefix
         self.LINE_BREAK = LineBreak(self)
         self.toc = TOC(self)
+        self.next_toc_number = 0
+        self.next_eqn_number = 1
 
     def to_html(self, input_stream, output_stream):
         BlockParser(self, input_stream).process_lines(output_stream)
@@ -1740,7 +1736,4 @@ if __name__ == '__main__':
                         dest='link_prefix',
                         default='')
     args = parser.parse_args()
-    # FIXME:
-    Image.image_prefix = args.image_prefix
-    Link.link_prefix = args.link_prefix
-    Wikidot().to_html(sys.stdin, sys.stdout)
+    Wikidot(args).to_html(sys.stdin, sys.stdout)
