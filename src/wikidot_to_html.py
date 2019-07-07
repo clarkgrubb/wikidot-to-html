@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Reads lines of input containing Wikidot-style markup
 from an input stream and writes the corresponding HTML to an
@@ -86,7 +86,8 @@ convert the token stream to a tree of *Node* and *Text* objects.
 
 """
 
-import cgi
+import argparse
+import html
 import pprint
 import re
 import sys
@@ -112,11 +113,15 @@ BLOCK_TYPE_HN = '_hn'
 BLOCK_TYPE_EMPTY = '_empty'
 
 MULTILINE_BLOCK_TYPES = [BLOCK_TYPE_CODE,
-                         BLOCK_TYPE_P,
-                         BLOCK_TYPE_UL,
+                         BLOCK_TYPE_MATH,
                          BLOCK_TYPE_OL,
-                         BLOCK_TYPE_TABLE]
+                         BLOCK_TYPE_P,
+                         BLOCK_TYPE_TABLE,
+                         BLOCK_TYPE_UL]
 
+TOC_LITERAL = '[[toc]]'
+
+RX_FULL_URL = re.compile(r'^(?P<scheme>[a-z]+):(?P<rest>.*)$')
 RX_BLOCKQUOTE = re.compile(
     r'^(?P<greater_than_signs>>+)\s*(?P<content>.*?)(?P<br> _)?$')
 RX_CODE_START = re.compile(
@@ -147,7 +152,7 @@ RX_HN = re.compile(
     r'(?P<content>\S.*?)'
     r'(?P<br> _)?$')
 RX_HR = re.compile(r'^(?P<indent>\s*)----(?P<content>)(?P<br> _)?$')
-RX_EMPTY = re.compile(r'^\s*(?P<br> _)?$')
+RX_EMPTY = re.compile(r'^\s*(?P<content>)(?P<br> _)?$')
 RX_P = re.compile(r'^\s*(?P<content>.*?)(?P<br> _)?$')
 RX_MARKERS = re.compile(r'(//|\*\*|\{\{|\}\}|@@|\[!--|--\]|--|__|,,|\^\^|'
                         r'\[\[span [^\]]+\]\]|\[\[/span\]\]|\[\[/size\]\]|'
@@ -157,11 +162,11 @@ RX_SPAN = re.compile(r'^\[\[span ([^\]]+)\]\]$')
 RX_SIZE = re.compile(r'^\[\[size ([^\]]+)\]\]$')
 RX_RGB = re.compile(r'^[a-fA-F0-9]{6}$')
 RX_PARSE_TRIPLE_BRACKET = re.compile(
-    r'^\[\[\[(?P<href>.*)\|(?P<name>.+)\]\]\]$')
+    r'^\[\[\[(?P<href>[^|]*)(\|(?P<name>.+))?\]\]\]$')
 RX_PARSE_DOUBLE_BRACKET = re.compile(r'^\[\[#\s+(?P<anchor>.+)\]\]$')
 RX_PARSE_SINGLE_BRACKET = re.compile(r'^\[(?P<href>\S+)\s+(?P<name>.+)\]$')
 RX_TRIPLE_BRACKET = re.compile(
-    r'(?P<token>^\[\[\[[^\]|]+\|[^\]|]+\]\]\])(?P<text>.*)$')
+    r'(?P<token>^\[\[\[[^\]|]+(\|[^\]|]+)?\]\]\])(?P<text>.*)$')
 RX_DOUBLE_BRACKET = re.compile(
     r'^(?P<token>\[\[[^\]]+\]\])(?P<text>.*)$')
 RX_SINGLE_BRACKET = re.compile(
@@ -172,11 +177,11 @@ RX_DOUBLED_CHAR = re.compile(
 RX_COLOR_HEAD = re.compile(r'^(?P<token>##[a-zA-Z][a-zA-Z0-9 ]*\|)'
                            '(?P<text>.*)$')
 RX_LEAD_WHITESPACE = re.compile(r'^(?P<token>\s+)(?P<text>.*)$')
-RX_URL_FRAGMENT = re.compile(r'^#[a-zA-Z][a-zA-Z0-9-]*$')
+RX_URL_FRAGMENT = re.compile(r'^#[a-zA-Z0-9][a-zA-Z0-9-_]*$')
 RX_URL = re.compile(
     r'^(?P<token>https?://[a-zA-Z0-9-._~:/#&?=+,;]*[a-zA-Z0-9-_~/#&?=+])'
     r'(?P<text>.*)$')
-RX_IMAGE = re.compile(r'^\[\[image\s+(?P<src>\S+)\s*(?P<attrs>.*)\]\]$')
+RX_IMAGE = re.compile(r'^\[\[(?P<alignment>=?)image\s+(?P<src>\S+)\s*(?P<attrs>.*)\]\]$')
 RX_IMAGE_ATTR = re.compile(
     r'^\s*(?P<attr>[^ =]+)'
     r'\s*=\s*'
@@ -190,6 +195,11 @@ RX_TAGGED_CELL = re.compile(r'^(?P<tag>~|<|=|>)\s+(?P<content>.*)$')
 RX_EMPTY_PARAGRAPH = re.compile(r'^(<br />|\s)*$', re.M)
 RX_BLANK_LINE = re.compile(r'^\s*$')
 RX_TABLE_CELL_LEXER = re.compile(r'(\|\||@|<|>)')
+
+
+class NullOutputStream(object):
+    def write(self, s):
+        pass
 
 
 class ClosureNode(object):
@@ -346,8 +356,15 @@ class Text(object):
 
 
 class Link(Text):
+    link_prefix = ''
+
     def __init__(self, raw_tag, href, content):
-        Text.__init__(self, raw_tag, 'a href="{}"'.format(href), 'a')
+        full_href = href
+        match = RX_FULL_URL.search(href)
+        if not match:
+            full_href = '{}/{}.html'.format(Link.link_prefix.rstrip('/'),
+                                            href.lstrip('/'))
+        Text.__init__(self, raw_tag, 'a href="{}"'.format(full_href), 'a')
         self.content = content
 
     def __str__(self):
@@ -366,16 +383,19 @@ class Anchor(Text):
 
 class Image(Text):
     ATTRS = ['title', 'width', 'height', 'style', 'class', 'size']
+    # FIXME: global state
+    image_prefix = ''
 
-    def __init__(self, raw_tag, src, attrs):
+    def __init__(self, raw_tag, src, attrs, alignment):
         Text.__init__(self,
                       raw_tag,
                       'img')
         self.src = src
         self.attrs = attrs
+        self.alignemnt = alignment
 
     def __str__(self):
-        s = '<img src="{}"'.format(self.src)
+        s = '<img src="{}{}"'.format(Image.image_prefix, self.src)
         for attr in Image.ATTRS:
             value = self.attrs.get(attr, None)
             if value:
@@ -388,6 +408,8 @@ class Image(Text):
         link = self.attrs.get('link', None)
         if link:
             s = '<a href="{}">{}</a>'.format(link, s)
+        if self.alignemnt == '=':
+           s = '<div class="image-container aligncenter">{}</div>'.format(s)
 
         return s
 
@@ -742,8 +764,9 @@ class InlineParser(object):
         md = RX_IMAGE.search(token)
         if md:
             src = md.group('src')
+            alignment = md.group('alignment')
             attrs = self.parse_image_attrs(md.group('attrs'))
-            self.add_text(Image(token, src, attrs))
+            self.add_text(Image(token, src, attrs, alignment))
         else:
             self.add_text(token)
 
@@ -770,9 +793,9 @@ class InlineParser(object):
                 self.no_escape_literal = False
                 self.remove_node(HTMLEntityLiteral)
             elif isinstance(token, HTMLEntityLiteralEndToken):
-                self.add_text(cgi.escape('>@'))
+                self.add_text(html.escape('>@'))
             elif self.escape_literal:
-                self.add_text(cgi.escape(token))
+                self.add_text(html.escape(token))
             elif self.no_escape_literal:
                 self.add_text(token)
             elif isinstance(token, HTMLEntityLiteralStartToken):
@@ -816,12 +839,15 @@ class InlineParser(object):
                     self.add_text(token)
             elif token.startswith('[[image'):
                 self.parse_image(token)
+            elif token.startswith('[[=image'):
+                self.parse_image(token)
             elif token.startswith('[[['):
                 md = RX_PARSE_TRIPLE_BRACKET.search(token)
                 if md:
+                    name = md.group('name') or md.group('href')
                     self.add_text(Link(token,
-                                       '/' + md.group('href'),
-                                       md.group('name')))
+                                       md.group('href'),
+                                       name))
                 else:
                     self.add_text(token)
             elif token.startswith('[['):
@@ -886,9 +912,9 @@ class InlineParser(object):
                 if md:
                     self.add_text(Link(token, token, token))
                 else:
-                    self.add_text(cgi.escape(token))
+                    self.add_text(html.escape(token))
             else:
-                self.add_text(cgi.escape(token))
+                self.add_text(html.escape(token))
 
         return self.top_node
 
@@ -955,6 +981,13 @@ class Block(object):
     def write_open_tag(self, output_stream):
         output_stream.write('<{}>'.format(self.tag))
 
+    def content(self):
+        parser = InlineParser()
+        for match in self.matches:
+            parser.parse(token_lex(match.group('content')))
+
+        return str(parser.top_node)
+
     def write_content(self, parser, output_stream):
         for match in self.matches:
             parser.parse(token_lex(match.group('content')))
@@ -970,13 +1003,40 @@ class Block(object):
         self.write_close_tag(output_stream)
 
 
+class TOC(object):
+    def __init__(self):
+        self.headers = []
+
+    def add_header(self, header):
+        self.headers.append({
+            'n': header.n(),
+            'toc_number': header.toc_number,
+            'text': header.content()
+        })
+
+    def close(self, output_stream):
+        output_stream.write('<div id="toc">\n')
+        output_stream.write('<div class="title">Table of Contents</div>\n')
+        output_stream.write('<div id="toc-list">\n')
+        for header in self.headers:
+            output_stream.write('<div style="margin-left: {}em;">\n'.format(header['n'] + 1))
+            output_stream.write('<a href="#toc{}">{}</a>\n'.format(header['toc_number'],
+                                                                   header['text']))
+            output_stream.write('</div>\n')
+        output_stream.write('</div>\n')
+        output_stream.write('</div>\n')
+
+
 class Header(Block):
+    # FIXME: eliminate this global state
     next_toc_number = 0
+    toc = TOC()
 
     def __init__(self, line, lineno, match):
         Block.__init__(self, line, lineno, BLOCK_TYPE_HN, match)
         self.toc_number = Header.next_toc_number
         Header.next_toc_number += 1
+        Header.toc.add_header(self)
 
     def write_open_tag(self, output_stream):
         output_stream.write('<{} id="toc{}"><span>'.format(self.tag,
@@ -985,9 +1045,11 @@ class Header(Block):
     def write_close_tag(self, output_stream):
         output_stream.write('</span></{}>\n'.format(self.tag))
 
+    def n(self):
+        return len(self.matches[0].group('plus_signs'))
+
     def _tag(self):
-        len_plus_signs = len(self.matches[0].group('plus_signs'))
-        return 'h{}'.format(len_plus_signs)
+        return 'h{}'.format(self.n())
 
 
 class HorizontalRule(Block):
@@ -1309,7 +1371,7 @@ class Code(Block):
         for i, match in enumerate(self.matches):
             if i == 0 and RX_BLANK_LINE.search(match.group('content')):
                 continue
-            output_stream.write(cgi.escape(match.group('content'), quote=True))
+            output_stream.write(html.escape(match.group('content'), quote=True))
             if i < len(self.matches) - 1:
                 output_stream.write('\n')
 
@@ -1328,6 +1390,7 @@ class Code(Block):
 
 
 class Math(Block):
+    # FIXME: global state
     next_eqn_number = 0
 
     def __init__(self, line, lineno, match):
@@ -1344,7 +1407,7 @@ class Math(Block):
         output_stream.write(
             '<div class="math-equation" id="equation-{}">'.format(
                 self.eqn_number))
-        output_stream.write(r'\begin{align} ')
+        output_stream.write(r'$$ \begin{align} ')
 
     def write_math_content(self, output_stream):
         n = self.output_nesting_level
@@ -1355,7 +1418,7 @@ class Math(Block):
         for i, match in enumerate(self.matches):
             if i == 0 and RX_BLANK_LINE.search(match.group('content')):
                 continue
-            output_stream.write(cgi.escape(match.group('content'), quote=True))
+            output_stream.write(html.escape(match.group('content'), quote=True))
             if i < len(self.matches) - 1:
                 output_stream.write('\n')
 
@@ -1364,7 +1427,7 @@ class Math(Block):
             self.output_nesting_level -= 1
 
     def write_close_tag(self, output_stream):
-        output_stream.write(r' \end{align}')
+        output_stream.write(r' \end{align} $$')
         output_stream.write('</div>\n')
 
     def close(self, output_stream):
@@ -1445,42 +1508,43 @@ class Div(object):
 
 
 class BlockParser(object):
-    def __init__(self, input_stream, output_stream):
+    def __init__(self, input_stream):
         self.input_stream = input_stream
-        self.output_stream = output_stream
+        self.input_lines = self.input_stream.readlines()
         self.current_block = None
         self.bq_level = 0
         self.continued_line = False
         self.divs = []
+        self.toc = None
 
-    def close_current_block(self):
+    def close_current_block(self, output_stream):
         if self.current_block:
-            self.current_block.close(self.output_stream)
+            self.current_block.close(output_stream)
         self.current_block = None
 
-    def block_factory(self, lineno, line, block_type=None, match=None):
+    def block_factory(self, line, lineno, block_type=None, match=None):
         if block_type == BLOCK_TYPE_UL:
-            return List(line, lineno, match)
+            return List(line=line, lineno=lineno, match=match)
         elif block_type == BLOCK_TYPE_OL:
-            return List(line, lineno, match)
+            return List(line=line, lineno=lineno, match=match)
         elif block_type == BLOCK_TYPE_EMPTY:
-            return Empty(line, lineno, match)
+            return Empty(line=line, lineno=lineno, match=match)
         elif block_type == BLOCK_TYPE_HR:
-            return HorizontalRule(line, lineno, match)
+            return HorizontalRule(line=line, lineno=lineno, match=match)
         elif block_type == BLOCK_TYPE_CODE:
-            return Code(line, lineno, match)
+            return Code(line=line, lineno=lineno, match=match)
         elif block_type == BLOCK_TYPE_MATH:
-            return Math(line, lineno, match)
+            return Math(line=line, lineno=lineno, match=match)
         elif block_type == BLOCK_TYPE_P:
-            return Paragraph(line, lineno, match)
+            return Paragraph(line=line, lineno=lineno, match=match)
         elif block_type == BLOCK_TYPE_HN:
-            return Header(line, lineno, match)
+            return Header(line=line, lineno=lineno, match=match)
         elif block_type == BLOCK_TYPE_TABLE:
-            return Table(line, lineno, match)
+            return Table(line=line, lineno=lineno, match=match)
         else:
-            return Block(line, lineno, block_type, match)
+            return Block(line=line, lineno=lineno, block_type=block_type, match=match)
 
-    def adjust_blockquote_level(self, line):
+    def adjust_blockquote_level(self, output_stream, line):
         if isinstance(self.current_block, Code):
             return line
 
@@ -1492,42 +1556,42 @@ class BlockParser(object):
             new_bq_level = 0
 
         if new_bq_level != self.bq_level:
-            self.close_current_block()
+            self.close_current_block(output_stream)
 
         if new_bq_level > self.bq_level:
             for _ in range(0, new_bq_level - self.bq_level):
-                self.output_stream.write('<blockquote>\n')
+                output_stream.write('<blockquote>\n')
         elif new_bq_level < self.bq_level:
             for _ in range(0, self.bq_level - new_bq_level):
-                self.output_stream.write('</blockquote>\n')
+                output_stream.write('</blockquote>\n')
 
         self.bq_level = new_bq_level
 
         return line
 
-    def check_for_div(self, line):
+    def check_for_div(self, output_stream, line):
         md = RX_DIV_START.search(line)
         if md:
-            self.close_current_block()
-            self.divs.append(Div(self.output_stream, md))
+            self.close_current_block(output_stream)
+            self.divs.append(Div(output_stream, md))
             return True
 
         md = RX_DIV_END.search(line)
         if md:
-            self.close_current_block()
+            self.close_current_block(output_stream)
             if self.divs:
                 div = self.divs.pop()
-                div.close(self.output_stream)
+                div.close(output_stream)
             return True
 
         return False
 
-    def close_divs(self):
+    def close_divs(self, output_stream):
         while self.divs:
             div = self.divs.pop()
-            div.close(self.output_stream)
+            div.close(output_stream)
 
-    def block_type_and_match(self, line):
+    def block_type_and_match(self, output_stream, line):
         if isinstance(self.current_block, Code):
             md = RX_CODE_START.search(line)
             if md:
@@ -1538,7 +1602,7 @@ class BlockParser(object):
                 md = RX_CODE_END.search(line)
                 if md:
                     if self.current_block.input_nesting_level == 0:
-                        self.close_current_block()
+                        self.close_current_block(output_stream)
                         return None, None
                     else:
                         self.current_block.input_nesting_level -= 1
@@ -1559,7 +1623,7 @@ class BlockParser(object):
                 md = RX_MATH_END.search(line)
                 if md:
                     if self.current_block.input_nesting_level == 0:
-                        self.close_current_block()
+                        self.close_current_block(output_stream)
                         return None, None
                     else:
                         self.current_block.input_nesting_level -= 1
@@ -1573,25 +1637,29 @@ class BlockParser(object):
         if self.bq_level == 0:
             md = RX_CODE_START.search(line)
             if md:
-                self.close_current_block()
+                self.close_current_block(output_stream)
                 return BLOCK_TYPE_CODE, md
             md = RX_MATH_START.search(line)
             if md:
-                self.close_current_block()
+                self.close_current_block(output_stream)
                 return BLOCK_TYPE_MATH, md
 
         return analyze_line(line, self.current_block)
 
-    def process_lines(self):
+    def _process_lines(self, output_stream):
         try:
-            for lineno, line in enumerate(self.input_stream, start=1):
+            for lineno, line in enumerate(self.input_lines, start=1):
                 line = line.rstrip()
-                line = self.adjust_blockquote_level(line)
+                line = self.adjust_blockquote_level(output_stream, line)
 
-                if self.check_for_div(line):
+                if line == TOC_LITERAL and self.toc:
+                    self.toc.close(output_stream)
                     continue
 
-                block_type, match = self.block_type_and_match(line)
+                if self.check_for_div(output_stream, line):
+                    continue
+
+                block_type, match = self.block_type_and_match(output_stream, line)
                 if not block_type:
                     continue
 
@@ -1610,13 +1678,13 @@ class BlockParser(object):
                                                 match,
                                                 continued=True)
                 elif (block_type == self.current_block.block_type and
-                      self.current_block.multiline_type):
+                      self.current_block.multiline_type()):
                     self.current_block.add_line(line,
                                                 lineno,
                                                 block_type,
                                                 match)
                 else:
-                    self.close_current_block()
+                    self.close_current_block(output_stream)
                     self.current_block = self.block_factory(line,
                                                             lineno,
                                                             block_type,
@@ -1627,16 +1695,38 @@ class BlockParser(object):
                 except IndexError:
                     self.continued_line = False
 
-            self.close_current_block()
-            self.adjust_blockquote_level('')
+            self.close_current_block(output_stream)
+            self.adjust_blockquote_level(output_stream, '')
         except:
             sys.stderr.write("ERROR at line {}: {}\n".format(lineno, line))
             raise
 
 
+    def process_lines(self, output_stream):
+        self._process_lines(NullOutputStream())
+
+        # FIXME: eliminate global state
+        Header.next_toc_number = 0
+        Math.next_eqn_number = 0
+        self.toc = Header.toc
+        Header.toc = TOC()
+
+        self._process_lines(output_stream)
+
 def wikidot_to_html(input_stream, output_stream):
-    BlockParser(input_stream, output_stream).process_lines()
+    BlockParser(input_stream).process_lines(output_stream)
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--image-prefix',
+                        dest='image_prefix',
+                        default='')
+    parser.add_argument('--link-prefix',
+                        dest='link_prefix',
+                        default='')
+    args = parser.parse_args()
+    # FIXME:
+    Image.image_prefix = args.image_prefix
+    Link.link_prefix = args.link_prefix
     wikidot_to_html(sys.stdin, sys.stdout)
