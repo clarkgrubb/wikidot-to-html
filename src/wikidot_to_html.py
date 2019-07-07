@@ -215,7 +215,8 @@ CLOSED_NODE = ClosureNode(True)
 
 
 class Node:
-    def __init__(self, raw_tag='', open_tag='', close_tag=None):
+    def __init__(self, wikidot, raw_tag='', open_tag='', close_tag=None):
+        self.wikidot = wikidot
         self.children = []
         self.raw_tag = raw_tag
         self.open_tag = open_tag
@@ -258,49 +259,51 @@ class Node:
 
 
 class Italic(Node):
-    def __init__(self, raw_tag='//'):
-        Node.__init__(self, raw_tag, 'em')
+    def __init__(self, wikidot, raw_tag='//'):
+        Node.__init__(self, wikidot, raw_tag, 'em')
 
 
 class Bold(Node):
-    def __init__(self, raw_tag='**'):
-        Node.__init__(self, raw_tag, 'strong')
+    def __init__(self, wikidot, raw_tag='**'):
+        Node.__init__(self, wikidot, raw_tag, 'strong')
 
 
 class FixedWidth(Node):
-    def __init__(self, raw_tag='{{'):
-        Node.__init__(self, raw_tag, 'tt')
+    def __init__(self, wikidot, raw_tag='{{'):
+        Node.__init__(self, wikidot, raw_tag, 'tt')
 
 
 class StrikeThru(Node):
-    def __init__(self, raw_tag='--'):
+    def __init__(self, wikidot, raw_tag='--'):
         Node.__init__(self,
+                      wikidot,
                       raw_tag,
                       'span style="text-decoration: line-through;"',
                       'span')
 
 
 class Underline(Node):
-    def __init__(self, raw_tag='__'):
+    def __init__(self, wikidot, raw_tag='__'):
         Node.__init__(self,
+                      wikidot,
                       raw_tag,
                       'span style="text-decoration: underline;"',
                       'span')
 
 
 class Subscript(Node):
-    def __init__(self, raw_tag=',,'):
-        Node.__init__(self, raw_tag, 'sub')
+    def __init__(self, wikidot, raw_tag=',,'):
+        Node.__init__(self, wikidot, raw_tag, 'sub')
 
 
 class Superscript(Node):
-    def __init__(self, raw_tag='^^'):
-        Node.__init__(self, raw_tag, 'sup')
+    def __init__(self, wikidot, raw_tag='^^'):
+        Node.__init__(self, wikidot, raw_tag, 'sup')
 
 
 class Span(Node):
-    def __init__(self, raw_tag, tag):
-        Node.__init__(self, raw_tag, tag, 'span')
+    def __init__(self, wikidot, raw_tag, tag):
+        Node.__init__(self, wikidot, raw_tag, tag, 'span')
 
     def __str__(self):
         return '{}{}{}'.format(
@@ -310,18 +313,18 @@ class Span(Node):
 
 
 class Color(Node):
-    def __init__(self, raw_tag, tag):
-        Node.__init__(self, raw_tag, tag, 'span')
+    def __init__(self, wikidot, raw_tag, tag):
+        Node.__init__(self, wikidot, raw_tag, tag, 'span')
 
 
 class Size(Node):
-    def __init__(self, raw_tag, tag):
-        Node.__init__(self, raw_tag, tag, 'span')
+    def __init__(self, wikidot, raw_tag, tag):
+        Node.__init__(self, wikidot, raw_tag, tag, 'span')
 
 
 class Literal(Node):
-    def __init__(self, raw_tag, tag):
-        Node.__init__(self, raw_tag, tag, 'span')
+    def __init__(self, wikidot, raw_tag, tag):
+        Node.__init__(self, wikidot, raw_tag, tag, 'span')
 
     def __str__(self):
         s = ''.join([str(child) for child in self.children])
@@ -332,8 +335,8 @@ class Literal(Node):
 
 
 class HTMLEntityLiteral(Node):
-    def __init__(self, raw_tag, tag):
-        Node.__init__(self, raw_tag, tag, 'span')
+    def __init__(self, wikidot, raw_tag, tag):
+        Node.__init__(self, wikidot, raw_tag, tag, 'span')
 
     def __str__(self):
         s = ''.join([str(child) for child in self.children])
@@ -344,7 +347,8 @@ class HTMLEntityLiteral(Node):
 
 
 class Text:
-    def __init__(self, raw_tag='', open_tag='', close_tag=None):
+    def __init__(self, wikidot, raw_tag='', open_tag='', close_tag=None):
+        self.wikidot = wikidot
         self.raw_tag = raw_tag
         self.open_tag = open_tag
         self.close_tag = open_tag if close_tag is None else close_tag
@@ -356,13 +360,13 @@ class Text:
 class Link(Text):
     link_prefix = ''
 
-    def __init__(self, raw_tag, href, content):
+    def __init__(self, wikidot, raw_tag, href, content):
         full_href = href
         match = RX_FULL_URL.search(href)
         if not match:
             full_href = '{}/{}.html'.format(Link.link_prefix.rstrip('/'),
                                             href.lstrip('/'))
-        Text.__init__(self, raw_tag, 'a href="{}"'.format(full_href), 'a')
+        Text.__init__(self, wikidot, raw_tag, 'a href="{}"'.format(full_href), 'a')
         self.content = content
 
     def __str__(self):
@@ -372,8 +376,8 @@ class Link(Text):
 
 
 class Anchor(Text):
-    def __init__(self, raw_tag, name):
-        Text.__init__(self, raw_tag, 'a name="{}"'.format(name), 'a')
+    def __init__(self, wikidot, raw_tag, name):
+        Text.__init__(self, wikidot, raw_tag, 'a name="{}"'.format(name), 'a')
 
     def __str__(self):
         return '<{}></{}>'.format(self.open_tag, self.close_tag)
@@ -384,8 +388,9 @@ class Image(Text):
     # FIXME: global state
     image_prefix = ''
 
-    def __init__(self, raw_tag, src, attrs, alignment):
+    def __init__(self, wikidot, raw_tag, src, attrs, alignment):
         Text.__init__(self,
+                      wikidot,
                       raw_tag,
                       'img')
         self.src = src
@@ -413,14 +418,11 @@ class Image(Text):
 
 
 class LineBreak(Node):
-    def __init__(self):
-        Node.__init__(self)
+    def __init__(self, wikidot):
+        Node.__init__(self, wikidot)
 
     def __str__(self):
         return '<br />\n'
-
-
-LINE_BREAK = LineBreak()
 
 
 def str_lex(text):
@@ -622,7 +624,8 @@ def token_lex(text):
 
 
 class InlineParser:
-    def __init__(self):
+    def __init__(self, wikidot):
+        self.wikidot = wikidot
         self.italic = False
         self.bold = False
         self.escape_literal = False
@@ -636,7 +639,7 @@ class InlineParser:
         self.span_depth = 0
         self.color = False
         self.size = False
-        self.top_node = Node()
+        self.top_node = Node(self.wikidot)
         self.nodes = [self.top_node]
         self.tokens = None
 
@@ -694,7 +697,7 @@ class InlineParser:
         return removed_nodes
 
     def restore_all_nodes(self, removed_nodes):
-        self.top_node = type(removed_nodes.pop())()
+        self.top_node = type(removed_nodes.pop())(self.wikidot)
         self.nodes = [self.top_node]
         self.restore_nodes(removed_nodes)
 
@@ -743,7 +746,7 @@ class InlineParser:
                 self.add_text(raw_tag)
         else:
             if i < len(tokens) - 1 and not RX_WHITESPACE.match(tokens[i + 1]):
-                self.add_node(cls())
+                self.add_node(cls(self.wikidot))
             else:
                 self.add_text(raw_tag)
 
@@ -765,7 +768,7 @@ class InlineParser:
             src = md.group('src')
             alignment = md.group('alignment')
             attrs = self.parse_image_attrs(md.group('attrs'))
-            self.add_text(Image(token, src, attrs, alignment))
+            self.add_text(Image(self.wikidot, token, src, attrs, alignment))
         else:
             self.add_text(token)
 
@@ -785,6 +788,7 @@ class InlineParser:
             elif isinstance(token, LiteralStartToken):
                 self.escape_literal = True
                 self.add_node(Literal(
+                    self.wikidot,
                     '@@',
                     'span style="white-space: pre-wrap;"'))
             elif isinstance(token, HTMLEntityLiteralEndToken) \
@@ -800,6 +804,7 @@ class InlineParser:
             elif isinstance(token, HTMLEntityLiteralStartToken):
                 self.no_escape_literal = True
                 self.add_node(HTMLEntityLiteral(
+                    self.wikidot,
                     '@@',
                     'span style="white-space: pre-wrap;"'))
             elif not isinstance(token, str):
@@ -812,7 +817,7 @@ class InlineParser:
                 md = RX_SPAN.search(token)
                 if md:
                     attributes = md.groups()[0]
-                    self.add_node(Span(token, 'span {}'.format(attributes)))
+                    self.add_node(Span(self.wikidot, token, 'span {}'.format(attributes)))
                 else:
                     self.add_text(token)
             elif token == '[[/span]]':
@@ -826,7 +831,8 @@ class InlineParser:
                 if md:
                     attributes = md.groups()[0]
                     self.add_node(
-                        Size(token,
+                        Size(self.wikidot,
+                             token,
                              'span style="font-size:{};"'.format(attributes)))
                 else:
                     self.add_text(token)
@@ -844,7 +850,8 @@ class InlineParser:
                 md = RX_PARSE_TRIPLE_BRACKET.search(token)
                 if md:
                     name = md.group('name') or md.group('href')
-                    self.add_text(Link(token,
+                    self.add_text(Link(self.wikidot,
+                                       token,
                                        md.group('href'),
                                        name))
                 else:
@@ -852,14 +859,14 @@ class InlineParser:
             elif token.startswith('[['):
                 md = RX_PARSE_DOUBLE_BRACKET.search(token)
                 if md:
-                    self.add_text(Anchor(token, md.group('anchor')))
+                    self.add_text(Anchor(self.wikidot, token, md.group('anchor')))
                 else:
                     self.add_text(token)
             elif token.startswith('['):
                 md = RX_PARSE_SINGLE_BRACKET.search(token)
                 if md:
                     self.add_text(
-                        Link(token, md.group('href'), md.group('name')))
+                        Link(self.wikidot, token, md.group('href'), md.group('name')))
                 else:
                     self.add_text(token)
             elif token == '##':
@@ -877,7 +884,7 @@ class InlineParser:
                         tag = 'span style="color: #{}"'.format(color.lower())
                     else:
                         tag = 'span style="color: {}"'.format(color)
-                    self.add_node(Color(token, tag))
+                    self.add_node(Color(self.wikidot, token, tag))
                 else:
                     self.add_text(token)
             elif token == '--':
@@ -896,7 +903,7 @@ class InlineParser:
                 if not self.fixed_width:
                     if i < len(tokens) - 1 and \
                        not RX_WHITESPACE.match(tokens[i + 1]):
-                        self.add_node(FixedWidth())
+                        self.add_node(FixedWidth(self.wikidot))
                     else:
                         self.add_text('{{')
             elif token == '}}':
@@ -909,7 +916,7 @@ class InlineParser:
             elif token.startswith('http'):
                 md = RX_URL.search(token)
                 if md:
-                    self.add_text(Link(token, token, token))
+                    self.add_text(Link(self.wikidot, token, token, token))
                 else:
                     self.add_text(html.escape(token))
             else:
@@ -946,7 +953,8 @@ def analyze_line(line, current_block):
 
 
 class Block:
-    def __init__(self, line, lineno, block_type=None, match=None):
+    def __init__(self, wikidot, line, lineno, block_type=None, match=None):
+        self.wikidot = wikidot
         self.lines = [line]
         self.linenos = [lineno]
         if block_type:
@@ -981,7 +989,7 @@ class Block:
         output_stream.write('<{}>'.format(self.tag))
 
     def content(self):
-        parser = InlineParser()
+        parser = InlineParser(self.wikidot)
         for match in self.matches:
             parser.parse(token_lex(match.group('content')))
 
@@ -996,14 +1004,15 @@ class Block:
         output_stream.write('</{}>\n'.format(self.tag))
 
     def close(self, output_stream):
-        parser = InlineParser()
+        parser = InlineParser(self.wikidot)
         self.write_open_tag(output_stream)
         self.write_content(parser, output_stream)
         self.write_close_tag(output_stream)
 
 
 class TOC:
-    def __init__(self):
+    def __init__(self, wikidot):
+        self.wikidot = wikidot
         self.headers = []
 
     def add_header(self, header):
@@ -1029,13 +1038,13 @@ class TOC:
 class Header(Block):
     # FIXME: eliminate this global state
     next_toc_number = 0
-    toc = TOC()
 
-    def __init__(self, line, lineno, match):
-        Block.__init__(self, line, lineno, BLOCK_TYPE_HN, match)
+    def __init__(self, wikidot, line, lineno, match):
+        Block.__init__(self, wikidot, line, lineno, BLOCK_TYPE_HN, match)
+        self.wikidot = wikidot
         self.toc_number = Header.next_toc_number
         Header.next_toc_number += 1
-        Header.toc.add_header(self)
+        self.wikidot.toc.add_header(self)
 
     def write_open_tag(self, output_stream):
         output_stream.write('<{} id="toc{}"><span>'.format(self.tag,
@@ -1052,16 +1061,17 @@ class Header(Block):
 
 
 class HorizontalRule(Block):
-    def __init__(self, line, lineno, match):
-        Block.__init__(self, line, lineno, BLOCK_TYPE_HR, match)
+    def __init__(self, wikidot, line, lineno, match):
+        Block.__init__(self, wikidot, line, lineno, BLOCK_TYPE_HR, match)
 
     def close(self, output_stream):
         output_stream.write('<hr />\n')
 
 
 class Table(Block):
-    def __init__(self, line, lineno, match):
-        Block.__init__(self, line, lineno, BLOCK_TYPE_TABLE, match)
+    def __init__(self, wikidot, line, lineno, match):
+        Block.__init__(self, wikidot, line, lineno, BLOCK_TYPE_TABLE, match)
+        self.wikidot = wikidot
         self.cell_type = 'td'
         self.colspan = 1
         self.text_align = None
@@ -1069,13 +1079,13 @@ class Table(Block):
         self.parser = None
 
     def start_cell(self):
-        self.parser = InlineParser()
+        self.parser = InlineParser(self.wikidot)
 
     def add_cell_content(self, content):
         self.parser.parse(token_lex(content))
 
     def add_line_break(self):
-        self.parser.add_text(LINE_BREAK)
+        self.parser.add_text(self.wikidot.LINE_BREAK)
 
     def end_cell(self, output_stream):
         output_stream.write('<{}>{}</{}>\n'.format(self.open_cell_tag(),
@@ -1260,9 +1270,10 @@ class Table(Block):
 
 
 class List(Block):
-    def __init__(self, line, lineno, match):
+    def __init__(self, wikidot, line, lineno, match):
         self.raw_tag = match.group('raw_tag')
         Block.__init__(self,
+                       wikidot,
                        line,
                        lineno,
                        self.raw_tag_to_tag(self.raw_tag),
@@ -1306,7 +1317,7 @@ class List(Block):
         output_stream.write(str(node))
 
     def close(self, output_stream):
-        parser = InlineParser()
+        parser = InlineParser(self.wikidot)
         node_tag_indent = []
         triple = None
         for match in self.matches:
@@ -1317,7 +1328,7 @@ class List(Block):
             content = match.group('content')
             parser.parse(token_lex(content))
             if match.group('br'):
-                parser.add_text(LINE_BREAK)
+                parser.add_text(self.wikidot.LINE_BREAK)
             else:
                 triple[0] = parser.top_node
                 node_tag_indent.append(triple)
@@ -1342,18 +1353,18 @@ class List(Block):
 
 
 class Empty(Block):
-    def __init__(self, line, lineno, match):
-        Block.__init__(self, line, lineno, BLOCK_TYPE_EMPTY, match)
+    def __init__(self, wikidot, line, lineno, match):
+        Block.__init__(self, wikidot, line, lineno, BLOCK_TYPE_EMPTY, match)
 
     def close(self, output_stream):
         pass
 
 
 class Code(Block):
-    def __init__(self, line, lineno, match):
+    def __init__(self, wikidot, line, lineno, match):
         self.input_nesting_level = 0
         self.output_nesting_level = 0
-        Block.__init__(self, line, lineno, BLOCK_TYPE_CODE, match)
+        Block.__init__(self, wikidot, line, lineno, BLOCK_TYPE_CODE, match)
 
     def write_open_tag(self, output_stream):
         output_stream.write('<div class="code">\n')
@@ -1391,10 +1402,10 @@ class Math(Block):
     # FIXME: global state
     next_eqn_number = 0
 
-    def __init__(self, line, lineno, match):
+    def __init__(self, wikidot, line, lineno, match):
         self.input_nesting_level = 0
         self.output_nesting_level = 0
-        Block.__init__(self, line, lineno, BLOCK_TYPE_MATH, match)
+        Block.__init__(self, wikidot, line, lineno, BLOCK_TYPE_MATH, match)
         Math.next_eqn_number += 1
         self.eqn_number = Math.next_eqn_number
 
@@ -1435,19 +1446,20 @@ class Math(Block):
 
 
 class Paragraph(Block):
-    def __init__(self, line, lineno, match):
-        Block.__init__(self, line, lineno, BLOCK_TYPE_P, match)
+    def __init__(self, wikidot, line, lineno, match):
+        self.wikidot = wikidot
+        Block.__init__(self, wikidot, line, lineno, BLOCK_TYPE_P, match)
 
     def get_content(self, parser):
         for i, match in enumerate(self.matches):
             parser.parse(token_lex(match.group('content')))
             if i < len(self.matches) - 1:
-                parser.add_text(LINE_BREAK)
+                parser.add_text(self.wikidot.LINE_BREAK)
 
         return parser.top_node
 
     def close(self, output_stream):
-        parser = InlineParser()
+        parser = InlineParser(self.wikidot)
         top_node = self.get_content(parser)
         content = str(top_node)
         suppress_tags = False
@@ -1466,7 +1478,8 @@ class Paragraph(Block):
 
 
 class Div:
-    def __init__(self, output_stream, match):
+    def __init__(self, wikidot, output_stream, match):
+        self.wikidot = wikidot
         self.attributes = {}
         self.parse_attributes(match)
         attrs = self.attributes_to_str()
@@ -1506,7 +1519,8 @@ class Div:
 
 
 class BlockParser:
-    def __init__(self, input_stream):
+    def __init__(self, wikidot, input_stream):
+        self.wikidot = wikidot
         self.input_stream = input_stream
         self.input_lines = self.input_stream.readlines()
         self.current_block = None
@@ -1522,24 +1536,28 @@ class BlockParser:
 
     def block_factory(self, line, lineno, block_type=None, match=None):
         if block_type == BLOCK_TYPE_UL:
-            return List(line=line, lineno=lineno, match=match)
+            return List(wikidot=self.wikidot, line=line, lineno=lineno, match=match)
         if block_type == BLOCK_TYPE_OL:
-            return List(line=line, lineno=lineno, match=match)
+            return List(wikidot=self.wikidot, line=line, lineno=lineno, match=match)
         if block_type == BLOCK_TYPE_EMPTY:
-            return Empty(line=line, lineno=lineno, match=match)
+            return Empty(wikidot=self.wikidot, line=line, lineno=lineno, match=match)
         if block_type == BLOCK_TYPE_HR:
-            return HorizontalRule(line=line, lineno=lineno, match=match)
+            return HorizontalRule(wikidot=self.wikidot, line=line, lineno=lineno, match=match)
         if block_type == BLOCK_TYPE_CODE:
-            return Code(line=line, lineno=lineno, match=match)
+            return Code(wikidot=self.wikidot, line=line, lineno=lineno, match=match)
         if block_type == BLOCK_TYPE_MATH:
-            return Math(line=line, lineno=lineno, match=match)
+            return Math(wikidot=self.wikidot, line=line, lineno=lineno, match=match)
         if block_type == BLOCK_TYPE_P:
-            return Paragraph(line=line, lineno=lineno, match=match)
+            return Paragraph(wikidot=self.wikidot, line=line, lineno=lineno, match=match)
         if block_type == BLOCK_TYPE_HN:
-            return Header(line=line, lineno=lineno, match=match)
+            return Header(wikidot=self.wikidot, line=line, lineno=lineno, match=match)
         if block_type == BLOCK_TYPE_TABLE:
-            return Table(line=line, lineno=lineno, match=match)
-        return Block(line=line, lineno=lineno, block_type=block_type, match=match)
+            return Table(wikidot=self.wikidot, line=line, lineno=lineno, match=match)
+        return Block(wikidot=self.wikidot,
+                     line=line,
+                     lineno=lineno,
+                     block_type=block_type,
+                     match=match)
 
     def adjust_blockquote_level(self, output_stream, line):
         if isinstance(self.current_block, Code):
@@ -1570,7 +1588,7 @@ class BlockParser:
         md = RX_DIV_START.search(line)
         if md:
             self.close_current_block(output_stream)
-            self.divs.append(Div(output_stream, md))
+            self.divs.append(Div(self.wikidot, output_stream, md))
             return True
 
         md = RX_DIV_END.search(line)
@@ -1698,14 +1716,19 @@ class BlockParser:
         # FIXME: eliminate global state
         Header.next_toc_number = 0
         Math.next_eqn_number = 0
-        self.toc = Header.toc
-        Header.toc = TOC()
+        self.toc = self.wikidot.toc
+        self.wikidot.toc = TOC(self.wikidot)
 
         self._process_lines(output_stream)
 
 
-def wikidot_to_html(input_stream, output_stream):
-    BlockParser(input_stream).process_lines(output_stream)
+class Wikidot:
+    def __init__(self):
+        self.LINE_BREAK = LineBreak(self)
+        self.toc = TOC(self)
+
+    def to_html(self, input_stream, output_stream):
+        BlockParser(self, input_stream).process_lines(output_stream)
 
 
 if __name__ == '__main__':
@@ -1720,4 +1743,4 @@ if __name__ == '__main__':
     # FIXME:
     Image.image_prefix = args.image_prefix
     Link.link_prefix = args.link_prefix
-    wikidot_to_html(sys.stdin, sys.stdout)
+    Wikidot().to_html(sys.stdin, sys.stdout)
