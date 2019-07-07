@@ -409,7 +409,7 @@ class Image(Text):
         if link:
             s = '<a href="{}">{}</a>'.format(link, s)
         if self.alignemnt == '=':
-           s = '<div class="image-container aligncenter">{}</div>'.format(s)
+            s = '<div class="image-container aligncenter">{}</div>'.format(s)
 
         return s
 
@@ -555,6 +555,7 @@ class HTMLEntityLiteralStartToken(Token):
 
 class HTMLEntityLiteralEndToken(Token):
     pass
+
 
 LITERAL_START_TOKEN = LiteralStartToken()
 LITERAL_END_TOKEN = LiteralEndToken()
@@ -1697,10 +1698,9 @@ class BlockParser(object):
 
             self.close_current_block(output_stream)
             self.adjust_blockquote_level(output_stream, '')
-        except:
+        except Exception:
             sys.stderr.write("ERROR at line {}: {}\n".format(lineno, line))
             raise
-
 
     def process_lines(self, output_stream):
         self._process_lines(NullOutputStream())
@@ -1712,6 +1712,7 @@ class BlockParser(object):
         Header.toc = TOC()
 
         self._process_lines(output_stream)
+
 
 def wikidot_to_html(input_stream, output_stream):
     BlockParser(input_stream).process_lines(output_stream)
