@@ -5,6 +5,12 @@ SHELL := bash
 .DELETE_ON_ERROR:
 .SUFFIXES:
 
+max_line_length = 150
+
+ve:
+	virtualenv --python=python3 ve
+	. ve/bin/activate && pip install -r requirements.txt
+
 output:
 	mkdir -p $@
 
@@ -57,10 +63,10 @@ test-optional: test.smart-quotes test.smart-quotes2
 all:
 	echo 'Run tests with "make test"'
 
-.PHONY: pep8
-pep8:
-	find . -name '*.py' | xargs pep8
+.PHONY: pycodestyle
+pycodestyle: ve
+	. ve/bin/activate && find src -name '*.py' | xargs pycodestyle --max-line-length=$(max_line_length)
 
 .PHONY: pylint
-pylint:
-	find . -name '*.py' | xargs pylint -d missing-docstring
+pylint: ve
+	. ve/bin/activate && find src -name '*.py' | xargs pylint -d missing-docstring
