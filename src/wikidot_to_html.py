@@ -358,14 +358,14 @@ class Text:
 
 
 class Link(Text):
-    link_prefix = ''
-
     def __init__(self, wikidot, raw_tag, href, content):
+        self.wikidot = wikidot
         full_href = href
         match = RX_FULL_URL.search(href)
-        if not match:
-            full_href = '{}/{}.html'.format(Link.link_prefix.rstrip('/'),
-                                            href.lstrip('/'))
+        if not match and not href.startswith('#'):
+            full_href = '{}/{}{}'.format(self.wikidot.link_prefix.rstrip('/'),
+                                         href.lstrip('/'),
+                                         self.wikidot.link_suffix)
         Text.__init__(self, wikidot, raw_tag, 'a href="{}"'.format(full_href), 'a')
         self.content = content
 
@@ -1718,6 +1718,7 @@ class Wikidot:
     def __init__(self, args):
         self.image_prefix = args.image_prefix
         self.link_prefix = args.link_prefix
+        self.link_suffix = args.link_suffix
         self.LINE_BREAK = LineBreak(self)
         self.toc = TOC(self)
         self.next_toc_number = 0
@@ -1734,6 +1735,9 @@ if __name__ == '__main__':
                         default='')
     parser.add_argument('--link-prefix',
                         dest='link_prefix',
+                        default='')
+    parser.add_argument('--link-suffix',
+                        dest='link_suffix',
                         default='')
     args = parser.parse_args()
     Wikidot(args).to_html(sys.stdin, sys.stdout)
