@@ -197,12 +197,12 @@ RX_BLANK_LINE = re.compile(r'^\s*$')
 RX_TABLE_CELL_LEXER = re.compile(r'(\|\||@|<|>)')
 
 
-class NullOutputStream(object):
+class NullOutputStream:
     def write(self, s):
         pass
 
 
-class ClosureNode(object):
+class ClosureNode:
     def __init__(self, is_closed):
         self.is_closed = is_closed
 
@@ -214,7 +214,7 @@ OPEN_NODE = ClosureNode(False)
 CLOSED_NODE = ClosureNode(True)
 
 
-class Node(object):
+class Node:
     def __init__(self, raw_tag='', open_tag='', close_tag=None):
         self.children = []
         self.raw_tag = raw_tag
@@ -229,7 +229,7 @@ class Node(object):
         return self.closure.closed()
 
     def __str__(self):
-        if len(self.children) == 0:
+        if not self.children:
             first = ''
             rest = ''
         elif len(self.children) == 1:
@@ -253,10 +253,8 @@ class Node(object):
                                               self.open_tag,
                                               rest,
                                               self.close_tag)
-            else:
-                return first
-        else:
-            return '{}{}{}{}'.format(first, self.raw_tag, rest, '')
+            return first
+        return '{}{}{}{}'.format(first, self.raw_tag, rest, '')
 
 
 class Italic(Node):
@@ -345,7 +343,7 @@ class HTMLEntityLiteral(Node):
                                     self.close_tag)
 
 
-class Text(object):
+class Text:
     def __init__(self, raw_tag='', open_tag='', close_tag=None):
         self.raw_tag = raw_tag
         self.open_tag = open_tag
@@ -537,7 +535,7 @@ def str_lex(text):
     return tokens
 
 
-class Token(object):
+class Token:
     pass
 
 
@@ -610,7 +608,7 @@ def token_lex(text):
             else:
                 tokens.append('>')
                 prev_s = '@'
-        elif s == '@' or s == '>':
+        elif s in {'@', '>'}:
             if prev_s:
                 tokens.append(prev_s)
             prev_s = s
@@ -623,7 +621,7 @@ def token_lex(text):
     return tokens
 
 
-class InlineParser(object):
+class InlineParser:
     def __init__(self):
         self.italic = False
         self.bold = False
@@ -947,7 +945,7 @@ def analyze_line(line, current_block):
     raise Exception('unparseable line: {}'.format(line))
 
 
-class Block(object):
+class Block:
     def __init__(self, line, lineno, block_type=None, match=None):
         self.lines = [line]
         self.linenos = [lineno]
@@ -1004,7 +1002,7 @@ class Block(object):
         self.write_close_tag(output_stream)
 
 
-class TOC(object):
+class TOC:
     def __init__(self):
         self.headers = []
 
@@ -1147,7 +1145,7 @@ class Table(Block):
         if first_cell is not None:
             self.print_end_of_cell(output_stream, first_cell)
         for cell in cells:
-            if len(cell) == 0:
+            if not cell:
                 self.colspan += 1
             else:
                 self.print_full_cell(output_stream, cell)
@@ -1178,7 +1176,7 @@ class Table(Block):
                 pass
             elif prev_s + s == '>@':
                 pass
-            elif s == '@' or s == '>':
+            elif s in {'@', '>'}:
                 pass
             elif s == '||':
                 if literal_contents or html_entity_literal_contents:
@@ -1275,10 +1273,9 @@ class List(Block):
     def raw_tag_to_tag(self, raw_tag):
         if raw_tag == '*':
             return BLOCK_TYPE_UL
-        elif raw_tag == '#':
+        if raw_tag == '#':
             return BLOCK_TYPE_OL
-        else:
-            raise Exception('unrecognized raw tag {}'.format(raw_tag))
+        raise Exception('unrecognized raw tag {}'.format(raw_tag))
 
     def open_list(self, output_stream, tag, indent):
         if self.inside_line.get(indent - 1, False):
@@ -1305,7 +1302,7 @@ class List(Block):
         output_stream.write('</li>\n')
         self.inside_line[indent] = False
 
-    def write_content(self, output_stream, node):
+    def write_list_content(self, output_stream, node):
         output_stream.write(str(node))
 
     def close(self, output_stream):
@@ -1338,7 +1335,7 @@ class List(Block):
             for i in range(last_indent, indent):
                 self.open_list(output_stream, tag, i + 1)
             self.open_line(output_stream, indent)
-            self.write_content(output_stream, node)
+            self.write_list_content(output_stream, node)
             last_indent = indent
         for i in range(-1, last_indent):
             self.close_list(output_stream, i + 1)
@@ -1468,7 +1465,7 @@ class Paragraph(Block):
                 output_stream.write('\n')
 
 
-class Div(object):
+class Div:
     def __init__(self, output_stream, match):
         self.attributes = {}
         self.parse_attributes(match)
@@ -1508,7 +1505,7 @@ class Div(object):
         output_stream.write('</div>\n')
 
 
-class BlockParser(object):
+class BlockParser:
     def __init__(self, input_stream):
         self.input_stream = input_stream
         self.input_lines = self.input_stream.readlines()
@@ -1526,24 +1523,23 @@ class BlockParser(object):
     def block_factory(self, line, lineno, block_type=None, match=None):
         if block_type == BLOCK_TYPE_UL:
             return List(line=line, lineno=lineno, match=match)
-        elif block_type == BLOCK_TYPE_OL:
+        if block_type == BLOCK_TYPE_OL:
             return List(line=line, lineno=lineno, match=match)
-        elif block_type == BLOCK_TYPE_EMPTY:
+        if block_type == BLOCK_TYPE_EMPTY:
             return Empty(line=line, lineno=lineno, match=match)
-        elif block_type == BLOCK_TYPE_HR:
+        if block_type == BLOCK_TYPE_HR:
             return HorizontalRule(line=line, lineno=lineno, match=match)
-        elif block_type == BLOCK_TYPE_CODE:
+        if block_type == BLOCK_TYPE_CODE:
             return Code(line=line, lineno=lineno, match=match)
-        elif block_type == BLOCK_TYPE_MATH:
+        if block_type == BLOCK_TYPE_MATH:
             return Math(line=line, lineno=lineno, match=match)
-        elif block_type == BLOCK_TYPE_P:
+        if block_type == BLOCK_TYPE_P:
             return Paragraph(line=line, lineno=lineno, match=match)
-        elif block_type == BLOCK_TYPE_HN:
+        if block_type == BLOCK_TYPE_HN:
             return Header(line=line, lineno=lineno, match=match)
-        elif block_type == BLOCK_TYPE_TABLE:
+        if block_type == BLOCK_TYPE_TABLE:
             return Table(line=line, lineno=lineno, match=match)
-        else:
-            return Block(line=line, lineno=lineno, block_type=block_type, match=match)
+        return Block(line=line, lineno=lineno, block_type=block_type, match=match)
 
     def adjust_blockquote_level(self, output_stream, line):
         if isinstance(self.current_block, Code):
@@ -1599,20 +1595,17 @@ class BlockParser(object):
                 self.current_block.input_nesting_level += 1
                 self.current_block.output_nesting_level += 1
                 return None, None
-            else:
-                md = RX_CODE_END.search(line)
-                if md:
-                    if self.current_block.input_nesting_level == 0:
-                        self.close_current_block(output_stream)
-                        return None, None
-                    else:
-                        self.current_block.input_nesting_level -= 1
-                        return None, None
-                else:
-                    md = RX_CODE_CONTENT.search(line)
-                    if md:
-                        return BLOCK_TYPE_CODE, md
-                    raise Exception('unparseable line: {}'.format(line))
+            md = RX_CODE_END.search(line)
+            if md:
+                if self.current_block.input_nesting_level == 0:
+                    self.close_current_block(output_stream)
+                    return None, None
+                self.current_block.input_nesting_level -= 1
+                return None, None
+            md = RX_CODE_CONTENT.search(line)
+            if md:
+                return BLOCK_TYPE_CODE, md
+            raise Exception('unparseable line: {}'.format(line))
 
         if isinstance(self.current_block, Math):
             md = RX_MATH_START.search(line)
@@ -1620,20 +1613,17 @@ class BlockParser(object):
                 self.current_block.input_nesting_level += 1
                 self.current_block.output_nesting_level += 1
                 return None, None
-            else:
-                md = RX_MATH_END.search(line)
-                if md:
-                    if self.current_block.input_nesting_level == 0:
-                        self.close_current_block(output_stream)
-                        return None, None
-                    else:
-                        self.current_block.input_nesting_level -= 1
-                        return None, None
-                else:
-                    md = RX_MATH_CONTENT.search(line)
-                    if md:
-                        return BLOCK_TYPE_MATH, md
-                    raise Exception('unparseable line: {}'.format(line))
+            md = RX_MATH_END.search(line)
+            if md:
+                if self.current_block.input_nesting_level == 0:
+                    self.close_current_block(output_stream)
+                    return None, None
+                self.current_block.input_nesting_level -= 1
+                return None, None
+            md = RX_MATH_CONTENT.search(line)
+            if md:
+                return BLOCK_TYPE_MATH, md
+            raise Exception('unparseable line: {}'.format(line))
 
         if self.bq_level == 0:
             md = RX_CODE_START.search(line)
