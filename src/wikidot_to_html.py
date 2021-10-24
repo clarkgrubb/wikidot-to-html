@@ -96,6 +96,7 @@ import sys
 PP = pprint.PrettyPrinter(stream=sys.stderr)
 
 BLOCK_TYPE_CODE = 'code'
+BLOCK_TYPE_HTML = 'html'
 BLOCK_TYPE_MATH = 'math'
 BLOCK_TYPE_P = 'p'
 BLOCK_TYPE_UL = 'ul'
@@ -113,6 +114,7 @@ BLOCK_TYPE_HN = '_hn'
 BLOCK_TYPE_EMPTY = '_empty'
 
 MULTILINE_BLOCK_TYPES = [BLOCK_TYPE_CODE,
+                         BLOCK_TYPE_HTML,
                          BLOCK_TYPE_MATH,
                          BLOCK_TYPE_OL,
                          BLOCK_TYPE_P,
@@ -129,6 +131,11 @@ RX_CODE_START = re.compile(
     r'(?P<content>.*)$')
 RX_CODE_END = re.compile(r'^\[\[/code\]\]$')
 RX_CODE_CONTENT = re.compile(r'^(?P<content>.*?)$')
+RX_HTML_START = re.compile(
+    r'^(?P<indent>\s*)(?P<raw_tag>\[\[html\]\])'
+    r'(?P<content>.*)$')
+RX_HTML_END = re.compile(r'^\[\[/html\]\]$')
+RX_HTML_CONTENT = re.compile(r'^(?P<content>.*?)$')
 RX_MATH_START = re.compile(
     r'^(?P<indent>\s*)(?P<raw_tag>\[\[math\]\])'
     r'(?P<content>.*)$')
@@ -1394,6 +1401,21 @@ class Code(Block):
         self.write_close_tag(output_stream)
 
 
+class HTML(Block):
+    def __init__(self, wikidot, line, lineno, match):
+        self.input_nesting_level = 0
+        self.output_nesting_level = 0
+        Block.__init__(self, wikidot, line, lineno, BLOCK_TYPE_HTML, match)
+
+    def write_html_content(self, output_stream):
+        for match in self.matches:
+            output_stream.write(match.group('content'))
+            output_stream.write('\n')
+
+    def close(self, output_stream):
+        self.write_html_content(output_stream)
+
+
 class Math(Block):
     def __init__(self, wikidot, line, lineno, match):
         self.input_nesting_level = 0
@@ -1538,6 +1560,8 @@ class BlockParser:
             return HorizontalRule(wikidot=self.wikidot, line=line, lineno=lineno, match=match)
         if block_type == BLOCK_TYPE_CODE:
             return Code(wikidot=self.wikidot, line=line, lineno=lineno, match=match)
+        if block_type == BLOCK_TYPE_HTML:
+            return HTML(wikidot=self.wikidot, line=line, lineno=lineno, match=match)
         if block_type == BLOCK_TYPE_MATH:
             return Math(wikidot=self.wikidot, line=line, lineno=lineno, match=match)
         if block_type == BLOCK_TYPE_P:
@@ -1618,6 +1642,24 @@ class BlockParser:
                 return BLOCK_TYPE_CODE, md
             raise Exception('unparseable line: {}'.format(line))
 
+        if isinstance(self.current_block, HTML):
+            md = RX_HTML_START.search(line)
+            if md:
+                self.current_block.input_nesting_level += 1
+                self.current_block.output_nesting_level += 1
+                return None, None
+            md = RX_HTML_END.search(line)
+            if md:
+                if self.current_block.input_nesting_level == 0:
+                    self.close_current_block(output_stream)
+                    return None, None
+                self.current_block.input_nesting_level -= 1
+                return None, None
+            md = RX_HTML_CONTENT.search(line)
+            if md:
+                return BLOCK_TYPE_HTML, md
+            raise Exception('unparseable line: {}'.format(line))
+
         if isinstance(self.current_block, Math):
             md = RX_MATH_START.search(line)
             if md:
@@ -1641,6 +1683,10 @@ class BlockParser:
             if md:
                 self.close_current_block(output_stream)
                 return BLOCK_TYPE_CODE, md
+            md = RX_HTML_START.search(line)
+            if md:
+                self.close_current_block(output_stream)
+                return BLOCK_TYPE_HTML, md
             md = RX_MATH_START.search(line)
             if md:
                 self.close_current_block(output_stream)
